@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Abfahrten">
+<title>Abfahrtsmonitor</title>
+<style>
+    :root {
+    --bg: #FFE2C8;      /* Pfirsich (Hintergrund) */
+    --panel: #FFFFFF;   /* Karten */
+    --line: #FFE2C8;    /* Trennlinien */
+    --text: #073070;    /* Marineblau (Schrift) */
+    --muted: #4F6489;   /* Nebentext */
+    --accent: #FF8D24;  /* Orange */
+    --late: #C62828;    /* Verspätung / Ausfall */
+    --ok: #1B8A4B;      /* "jetzt" */
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 14px 28px 6px;
+  }
+  #clock { font-size: 44px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  #status { font-size: 16px; color: var(--muted); }
+  #status.error { color: var(--late); }
+  main {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+    gap: 16px; padding: 10px 20px 20px;
+  }
+  section {
+    background: var(--panel); border-radius: 14px;
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  h2 {
+    margin: 0; padding: 16px 20px; font-size: 26px; font-weight: 700;
+    color: var(--text); border-bottom: 3px solid var(--accent);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  ul { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+  li {
+    display: grid; grid-template-columns: 74px 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 12px 20px; border-bottom: 1px solid var(--line);
+  }
+  li:last-child { border-bottom: 0; }
+  .line {
+    font-size: 24px; font-weight: 800; background: var(--text); color: #fff;
+    border-radius: 8px; text-align: center; padding: 6px 0;
+  }
+  .dir { font-size: 21px; line-height: 1.2; min-width: 0; }
+  .dir small { display: block; font-size: 15px; color: var(--muted); margin-top: 3px; }
+  .dir small.late { color: var(--late); }
+  .min { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .min span { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .min.now { color: var(--ok); font-size: 26px; }
+  li.cancelled .dir, li.cancelled .min { text-decoration: line-through; opacity: .5; }
+  footer { padding: 0 20px 18px; }
+  footer:empty { display: none; }
+  .ticker { display: flex; align-items: center; background: var(--panel); border-radius: 14px; overflow: hidden; height: 64px; }
+  .ticker-label {
+    flex: none; background: var(--accent); color: #073070; font-weight: 800; font-size: 18px;
+    padding: 0 18px; height: 100%; display: flex; align-items: center; white-space: nowrap;
+  }
+  .ticker-view { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; padding: 0 16px; }
+  .ticker-track { display: inline-block; font-size: 24px; animation: ticker 60s linear infinite; }
+  .ticker-item b { color: var(--text); font-weight: 800; }
+  .ticker-item + .ticker-item::before { content: "◆"; color: var(--late); margin: 0 28px; }
+  .ticker-view .free { font-size: 20px; color: var(--ok); }
+  .ticker-view .free.err { color: var(--late); }
+  @keyframes ticker { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+  .alerts { margin-top: auto; padding: 10px 14px 14px; display: grid; gap: 8px; }
+  .alert {
+    background: #FFF1E3; border-left: 5px solid var(--accent);
+    border-radius: 6px; padding: 10px 12px; font-size: 16px; line-height: 1.3;
+  }
+  .alert b { display: block; color: var(--text); font-size: 17px; margin-bottom: 2px; }
+  #stops { display: contents; }
+  #hbf { background: var(--panel); border-radius: 14px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  #hbf[hidden] { display: none; }
+  .hbf-view { flex: 1; min-height: 0; overflow: hidden; }
+  .hbf-list { list-style: none; margin: 0; padding: 0; }
+  .hbf-list.scrolling { animation: hbfscroll 30s ease-in-out infinite alternate; }
+  .hbf-list li.msgli { display: block; }
+  @keyframes hbfscroll { 0%, 8% { transform: translateY(0); } 92%, 100% { transform: translateY(var(--dist, 0px)); } }
+  main.dense h2 { font-size: 21px; padding: 14px; }
+  main.dense li { grid-template-columns: 54px 1fr auto; gap: 10px; padding: 10px 12px; }
+  main.dense .line { font-size: 20px; padding: 5px 0; }
+  main.dense .dir { font-size: 17px; }
+  main.dense .dir small { font-size: 13px; }
+  main.dense .min { font-size: 26px; }
+  main.dense .min.now { font-size: 20px; }
+  .msg { padding: 24px 20px; color: var(--muted); font-size: 18px; line-height: 1.4; }
+  .msg.error { color: var(--late); }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; overflow-y: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div id="clock">--:--</div>
+  <div id="status">Lade Abfahrten …</div>
+</header>
+<main id="board"><div id="stops"></div><section id="hbf" hidden></section></main>
+<footer id="traffic"></footer>
+
+<script>
+/* ====== HIER EINTRAGEN ====== */
+const ACCESS_ID = "DEIN_RMV_ZUGANGSSCHLUESSEL";
+
+// Genau drei (oder beliebig viele) Haltestellen: Anzeigename + Haltestellen-ID.
+// IDs findest du, indem du diese Seite mit ?suche=Haltestellenname öffnest.
+const STOPS = [
+  { name: "Lagerstraße", id: "3024970" },
+  { name: "Rudolf-Diesel-Str./BTZ", id: "3015845" },
+  { name: "Robert-Bosch-Straße/B42", id: "3024969" }
+];
+
+// Darmstädter Hauptbahnhof: eigene Spalte, die hoch und runter scrollt. Auf null setzen zum Ausblenden.
+const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 24 };
+
+const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
+// RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
+// Beispiel: 3 Haltestellen, alle 45 Sek, 1 Stunde pro Tag = ca. 180–240 Abrufe/Tag.
+const REFRESH_SECONDS = 45;       // Abfrage-Intervall der Abfahrten
+const MSG_REFRESH_SECONDS = 600;  // Intervall der RMV-Störungsmeldungen
+// Betriebszeit pro Wochentag (0 = Sonntag, 1 = Montag, ... 6 = Samstag). Tage ohne Eintrag: Pause.
+const ACTIVE_SCHEDULE = {
+  1: ["15:15", "16:00"],  // Montag    (Feierabend 16:00)
+  2: ["15:15", "16:00"],  // Dienstag
+  3: ["15:15", "16:00"],  // Mittwoch
+  4: ["15:15", "16:00"],  // Donnerstag
+  5: ["13:00", "13:45"]   // Freitag
+};
+const DAILY_LIMIT = 450;          // Sicherheitsgrenze (zählt nur auf diesem Gerät)
+const DURATION_MIN = 90;     // Zeitfenster in Minuten
+
+// Autobahn-Verkehrsmeldungen (kostenlos, ohne Schlüssel). Leer lassen ([]), um sie auszublenden.
+const AUTOBAHNEN = ["A5", "A67"];
+// Optional: nur Meldungen zeigen, in denen eines dieser Wörter vorkommt, z. B. ["Frankfurt", "Hanau"].
+// Leer lassen ([]), um alle Meldungen der Autobahnen oben zu zeigen.
+const AUTOBAHN_FILTER = [
+  "Darmstadt", "Darmstädt", "Weiterstadt", "Eberstadt", "Pfungstadt", "Seeheim", "Zwingenberg",
+  "Bensheim", "Heppenheim",                                   // Kreis Bergstraße (A5)
+  "Lorsch", "Bürstadt", "Lampertheim", "Viernheim",           // Kreis Bergstraße (A67)
+  "Büttelborn", "Gerau", "Riedstadt", "Gernsheim", "Rüsselsheim" // Kreis Groß-Gerau (A67)
+];
+const AUTOBAHN_MAX = 8;      // maximal angezeigte Meldungen im Lauftext
+const TICKER_SPEED = 90;     // Lauftext-Tempo in Pixel pro Sekunde (kleiner = langsamer)
+const TRAFFIC_REFRESH_SECONDS = 300;
+/* ============================ */
+
+const API = "https://www.rmv.de/hapi";
+const board = document.getElementById("board");
+const stopsEl = document.getElementById("stops");
+const hbfEl = document.getElementById("hbf");
+const statusEl = document.getElementById("status");
+let data = {};   // id -> Liste der Abfahrten
+let errors = {}; // id -> Fehlertext
+let lastOk = null;
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function toDate(d, t) {
+  if (!d || !t) return null;
+  return new Date(d + "T" + t);
+}
+
+function parseDeparture(x) {
+  const planned = toDate(x.date, x.time);
+  const real = toDate(x.rtDate || x.date, x.rtTime) || planned;
+  const prod = (x.ProductAtStop || (x.Product && x.Product[0]) || {});
+  const line = prod.line || prod.displayNumber || (x.name || "").replace(/^(Bus|Tram|Str|S|U|RE|RB|IC|ICE)\s*/i, "") || "?";
+  return {
+    line: String(line).slice(0, 6),
+    dir: (x.direction || "").replace(/^Frankfurt \(Main\)\s*/i, "FFM "),
+    planned, real,
+    cancelled: x.cancelled === true || x.cancelled === "true"
+  };
+}
+
+function isActive() {
+  const n = new Date();
+  const win = ACTIVE_SCHEDULE[n.getDay()];
+  if (!win) return false;
+  const mins = n.getHours() * 60 + n.getMinutes();
+  const [fh, fm] = win[0].split(":").map(Number);
+  const [th, tm] = win[1].split(":").map(Number);
+  return mins >= fh * 60 + fm && mins < th * 60 + tm;
+}
+
+function scheduleText() {
+  const names = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+  const groups = {};
+  Object.keys(ACTIVE_SCHEDULE).forEach(d => {
+    const k = ACTIVE_SCHEDULE[d].join("–");
+    (groups[k] = groups[k] || []).push(names[d]);
+  });
+  return Object.entries(groups).map(([k, days]) =>
+    (days.length > 1 ? `${days[0]}–${days[days.length - 1]}` : days[0]) + " " + k).join(", ") + " Uhr";
+}
+
+// Zählt RMV-Abrufe pro Tag auf diesem Gerät und sperrt bei Erreichen des Limits.
+function takeCall() {
+  const key = "rmvCalls-" + new Date().toLocaleDateString("sv");
+  try {
+    const n = Number(localStorage.getItem(key) || 0);
+    if (n >= DAILY_LIMIT) return false;
+    localStorage.setItem(key, String(n + 1));
+  } catch (e) {}
+  return true;
+}
+
+let lastFetch = 0;
+
+function allStops() { return HBF ? [...STOPS, HBF] : STOPS; }
+
+async function loadStop(stop) {
+  if (!takeCall()) throw new Error("Tageslimit erreicht");
+  const url = `${API}/departureBoard?accessId=${encodeURIComponent(ACCESS_ID)}` +
+    `&id=${encodeURIComponent(stop.id)}&format=json&maxJourneys=${stop.max || MAX_PER_STOP}` +
+    `&duration=${DURATION_MIN}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (json.errorCode) throw new Error(json.errorText || json.errorCode);
+  return (json.Departure || []).map(parseDeparture)
+    .filter(d => d.real)
+    .sort((a, b) => a.real - b.real);
+}
+
+let alertsList = [];
+let lastMsg = 0;
+function normId(s) {
+  const m = /L=(\d+)/.exec(String(s));
+  return String(m ? m[1] : s).replace(/^0+/, "");
+}
+
+async function loadMessages() {
+  lastMsg = Date.now();
+  if (!isActive() || !takeCall()) return;
+  try {
+    const url = `${API}/himSearch?accessId=${encodeURIComponent(ACCESS_ID)}&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    const raw = json.Message || (json.Messages && json.Messages.Message) || [];
+    alertsList = raw.map(m => ({
+      head: m.head || "",
+      lead: m.lead || m.text || "",
+      stops: (m.affectedStop || []).map(s => normId(s.extId || s.id || ""))
+    })).filter(a => a.head || a.lead);
+  } catch (e) {
+    console.warn("Verkehrsmeldungen nicht verfügbar:", e.message);
+  }
+}
+
+async function refresh() {
+  if (!isActive()) { render(); return; }
+  lastFetch = Date.now();
+  if (Date.now() - lastMsg > MSG_REFRESH_SECONDS * 1000) loadMessages().then(render);
+  const results = await Promise.allSettled(allStops().map(loadStop));
+  results.forEach((r, i) => {
+    const id = allStops()[i].id;
+    if (r.status === "fulfilled") { data[id] = r.value; delete errors[id]; }
+    else { errors[id] = r.reason && r.reason.message ? r.reason.message : "Unbekannter Fehler"; }
+  });
+  if (results.some(r => r.status === "fulfilled")) lastOk = new Date();
+  render();
+}
+
+function render() {
+  const now = new Date();
+  const cols = STOPS.length + (HBF ? 1 : 0);
+  board.style.setProperty("--cols", cols);
+  board.classList.toggle("dense", cols >= 4);
+  statusEl.className = "";
+  const failed = Object.keys(errors).length;
+  const inactive = !isActive();
+  if (inactive) {
+    statusEl.textContent = `Pause, aktiv ${scheduleText()}`;
+  } else if (failed && !lastOk) {
+    statusEl.textContent = "Keine Verbindung zur RMV-Schnittstelle";
+    statusEl.className = "error";
+  } else if (failed) {
+    statusEl.textContent = `${failed} Haltestelle(n) nicht aktuell`;
+    statusEl.className = "error";
+  } else if (lastOk) {
+    statusEl.textContent = `Stand ${pad(lastOk.getHours())}:${pad(lastOk.getMinutes())}:${pad(lastOk.getSeconds())}`;
+  }
+
+  stopsEl.innerHTML = "";
+  STOPS.forEach(stop => {
+    const sec = document.createElement("section");
+    const h = document.createElement("h2");
+    h.textContent = stop.name;
+    sec.appendChild(h);
+
+    const list = (data[stop.id] || []).filter(d => d.real - now > -60000);
+    if (!data[stop.id]) {
+      const m = document.createElement("div");
+      m.className = "msg" + (errors[stop.id] ? " error" : "");
+      m.textContent = errors[stop.id]
+        ? "Abfahrten konnten nicht geladen werden: " + errors[stop.id]
+        : (inactive ? "Außerhalb der Betriebszeit." : "Lade …");
+      sec.appendChild(m);
+    } else if (!list.length) {
+      const m = document.createElement("div");
+      m.className = "msg";
+      m.textContent = `In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`;
+      sec.appendChild(m);
+    } else {
+      const ul = document.createElement("ul");
+      list.slice(0, MAX_PER_STOP).forEach(d => {
+        const mins = Math.floor((d.real - now) / 60000);
+        const delay = d.planned ? Math.round((d.real - d.planned) / 60000) : 0;
+        const li = document.createElement("li");
+        if (d.cancelled) li.className = "cancelled";
+
+        const line = document.createElement("div");
+        line.className = "line"; line.textContent = d.line;
+
+        const dir = document.createElement("div");
+        dir.className = "dir"; dir.textContent = d.dir;
+        const sub = document.createElement("small");
+        const pt = d.planned ? `${pad(d.planned.getHours())}:${pad(d.planned.getMinutes())}` : "";
+        if (d.cancelled) { sub.textContent = "Fällt aus"; sub.className = "late"; }
+        else if (delay >= 1) { sub.textContent = `${pt} Uhr, +${delay} min`; sub.className = "late"; }
+        else { sub.textContent = `${pt} Uhr, pünktlich`; }
+        dir.appendChild(sub);
+
+        const mn = document.createElement("div");
+        mn.className = "min" + (mins <= 0 ? " now" : "");
+        if (mins <= 0) mn.textContent = "jetzt";
+        else mn.innerHTML = `${mins}<span>min</span>`;
+
+        li.append(line, dir, mn);
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+    }
+    const rel = alertsList.filter(a => a.stops.includes(normId(stop.id))).slice(0, 2);
+    if (rel.length) {
+      const box = document.createElement("div");
+      box.className = "alerts";
+      rel.forEach(a => {
+        const el = document.createElement("div");
+        el.className = "alert";
+        const b = document.createElement("b");
+        b.textContent = a.head || "Hinweis";
+        el.appendChild(b);
+        if (a.lead) {
+          const t = a.lead.length > 140 ? a.lead.slice(0, 137) + "…" : a.lead;
+          el.appendChild(document.createTextNode(t));
+        }
+        box.appendChild(el);
+      });
+      sec.appendChild(box);
+    }
+    stopsEl.appendChild(sec);
+  });
+  renderHbf(now, inactive);
+}
+
+function rowFor(d, now) {
+  const mins = Math.floor((d.real - now) / 60000);
+  const delay = d.planned ? Math.round((d.real - d.planned) / 60000) : 0;
+  const li = document.createElement("li");
+  if (d.cancelled) li.className = "cancelled";
+  const line = document.createElement("div");
+  line.className = "line"; line.textContent = d.line;
+  const dir = document.createElement("div");
+  dir.className = "dir"; dir.textContent = d.dir;
+  const sub = document.createElement("small");
+  const pt = d.planned ? `${pad(d.planned.getHours())}:${pad(d.planned.getMinutes())}` : "";
+  if (d.cancelled) { sub.textContent = "Fällt aus"; sub.className = "late"; }
+  else if (delay >= 1) { sub.textContent = `${pt} Uhr, +${delay} min`; sub.className = "late"; }
+  else { sub.textContent = `${pt} Uhr, pünktlich`; }
+  dir.appendChild(sub);
+  const mn = document.createElement("div");
+  mn.className = "min" + (mins <= 0 ? " now" : "");
+  if (mins <= 0) mn.textContent = "jetzt"; else mn.innerHTML = `${mins}<span>min</span>`;
+  li.append(line, dir, mn);
+  return li;
+}
+
+/* Hbf-Spalte: Liste bleibt als Element bestehen, damit das Scrollen nicht neu startet */
+let hbfList = null, hbfView = null, hbfDist = -1;
+function renderHbf(now, inactive) {
+  if (!HBF) { hbfEl.hidden = true; return; }
+  if (!hbfList) {
+    const h = document.createElement("h2");
+    h.textContent = HBF.name;
+    hbfView = document.createElement("div");
+    hbfView.className = "hbf-view";
+    hbfList = document.createElement("ul");
+    hbfList.className = "hbf-list";
+    hbfView.appendChild(hbfList);
+    hbfEl.append(h, hbfView);
+  }
+  hbfEl.hidden = false;
+
+  const note = text => {
+    const li = document.createElement("li");
+    li.className = "msgli";
+    const m = document.createElement("div");
+    m.className = "msg" + (errors[HBF.id] ? " error" : "");
+    m.textContent = text;
+    li.appendChild(m);
+    return li;
+  };
+
+  const list = (data[HBF.id] || []).filter(d => d.real - now > -60000);
+  let rows;
+  if (!data[HBF.id]) {
+    rows = [note(errors[HBF.id] ? "Abfahrten konnten nicht geladen werden: " + errors[HBF.id]
+                               : (inactive ? "Außerhalb der Betriebszeit." : "Lade …"))];
+  } else if (!list.length) {
+    rows = [note(`In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
+  } else {
+    rows = list.map(d => rowFor(d, now));
+  }
+  hbfList.replaceChildren(...rows);
+
+  const dist = Math.max(0, hbfList.scrollHeight - hbfView.clientHeight);
+  if (Math.abs(dist - hbfDist) > 8) {
+    hbfDist = dist;
+    hbfList.style.setProperty("--dist", "-" + dist + "px");
+    hbfList.style.animationDuration = Math.max(10, dist / 25 + 6) + "s";
+  }
+  hbfList.classList.toggle("scrolling", dist > 4);
+}
+
+function tickClock() {
+  const n = new Date();
+  document.getElementById("clock").textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}`;
+}
+
+/* ---- Autobahn-Verkehrsmeldungen ---- */
+const AB_API = "https://verkehr.autobahn.de/o/autobahn";
+const trafficEl = document.getElementById("traffic");
+
+async function fetchRoad(road, kind) {
+  const res = await fetch(`${AB_API}/${encodeURIComponent(road)}/services/${kind}`);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  return json[kind] || [];
+}
+
+async function loadTraffic() {
+  if (!AUTOBAHNEN.length) { trafficEl.innerHTML = ""; return; }
+  const jobs = [];
+  AUTOBAHNEN.forEach(r => { jobs.push(fetchRoad(r, "warning")); jobs.push(fetchRoad(r, "closure")); });
+  const results = await Promise.allSettled(jobs);
+  const ok = results.filter(r => r.status === "fulfilled");
+
+  trafficEl.innerHTML = "";
+  const bar = document.createElement("div");
+  bar.className = "ticker";
+  const label = document.createElement("div");
+  label.className = "ticker-label";
+  label.textContent = "Verkehr " + AUTOBAHNEN.join(" · ");
+  const view = document.createElement("div");
+  view.className = "ticker-view";
+  bar.append(label, view);
+  trafficEl.appendChild(bar);
+
+  const note = (text, err) => {
+    const f = document.createElement("span");
+    f.className = "free" + (err ? " err" : "");
+    f.textContent = text;
+    view.appendChild(f);
+  };
+
+  if (!ok.length) { note("Autobahn-Meldungen konnten nicht geladen werden.", true); return; }
+
+  const words = AUTOBAHN_FILTER.map(w => w.toLowerCase());
+  const items = ok.flatMap(r => r.value).map(x => ({
+    title: x.title || "",
+    sub: x.subtitle || "",
+    desc: Array.isArray(x.description) ? x.description.filter(Boolean).join(" ") : (x.description || "")
+  })).filter(x => {
+    if (!words.length) return true;
+    const t = (x.title + " " + x.sub + " " + x.desc).toLowerCase();
+    return words.some(w => t.includes(w));
+  });
+
+  if (!items.length) { note("Keine Meldungen auf den eingestellten Strecken."); return; }
+
+  const track = document.createElement("div");
+  track.className = "ticker-track";
+  items.slice(0, AUTOBAHN_MAX).forEach(x => {
+    const span = document.createElement("span");
+    span.className = "ticker-item";
+    const b = document.createElement("b");
+    b.textContent = x.title;
+    span.appendChild(b);
+    const rest = [x.sub, x.desc].filter(Boolean).join(" – ");
+    if (rest) span.appendChild(document.createTextNode(" " + (rest.length > 220 ? rest.slice(0, 217) + "…" : rest)));
+    track.appendChild(span);
+  });
+  view.appendChild(track);
+  const secs = Math.max(20, (track.scrollWidth + window.innerWidth) / TICKER_SPEED);
+  track.style.animationDuration = secs + "s";
+}
+
+/* Hilfsmodus: ?suche=Name zeigt Haltestellen-IDs an */
+async function stopSearch(term) {
+  document.getElementById("clock").textContent = "Haltestellen-Suche";
+  statusEl.textContent = `Suche nach „${term}“`;
+  try {
+    const url = `${API}/location.name?accessId=${encodeURIComponent(ACCESS_ID)}` +
+      `&input=${encodeURIComponent(term)}&format=json`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const items = (json.stopLocationOrCoordLocation || [])
+      .map(x => x.StopLocation).filter(Boolean);
+    board.style.display = "block";
+    board.innerHTML = "<section><h2>Treffer</h2>" +
+      (items.length
+        ? "<ul>" + items.map(s => `<li style="grid-template-columns:1fr"><div class="dir">${s.name}<small>ID: ${s.extId || s.id}</small></div></li>`).join("") + "</ul>"
+        : '<div class="msg">Keine Haltestelle gefunden.</div>') +
+      "</section>";
+  } catch (e) {
+    board.innerHTML = `<section><div class="msg error">Suche fehlgeschlagen: ${e.message}. Prüfe den Zugangsschlüssel.</div></section>`;
+  }
+}
+
+/* Bildschirm anlassen, falls der Browser es erlaubt */
+async function keepAwake() {
+  try { if ("wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { keepAwake(); if (Date.now() - lastFetch > REFRESH_SECONDS * 1000) refresh(); } });
+
+const q = new URLSearchParams(location.search).get("suche");
+if (q) {
+  stopSearch(q);
+} else {
+  tickClock();
+  setInterval(() => { tickClock(); if (lastOk || Object.keys(data).length) render(); }, 15000);
+  render();
+  refresh();
+  setInterval(refresh, REFRESH_SECONDS * 1000);
+  loadTraffic();
+  setInterval(loadTraffic, TRAFFIC_REFRESH_SECONDS * 1000);
+  keepAwake();
+}
+</script>
+</body>
+</html>
