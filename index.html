@@ -120,7 +120,10 @@
 
 <script>
 /* ====== HIER EINTRAGEN ====== */
-const ACCESS_ID = "605ff1f1-5aad-452a-a9e1-59279300eda4";
+// Adresse deines Zwischenservers (Cloudflare Worker), z. B. "https://rmv-proxy.DEINNAME.workers.dev"
+// Der Zwischenserver hängt den RMV-Zugangsschlüssel selbst an. Der Schlüssel steht dann NICHT mehr in dieser Datei.
+const API_PROXY = "https://rmv-proxy.kevin-kuk.workers.dev";
+const ACCESS_ID = "";   // nur nötig, wenn API_PROXY leer ist (dann geht es direkt zum RMV)
 
 // Genau drei (oder beliebig viele) Haltestellen: Anzeigename + Haltestellen-ID.
 // IDs findest du, indem du diese Seite mit ?suche=Haltestellenname öffnest.
@@ -164,7 +167,7 @@ const TICKER_SPEED = 90;     // Lauftext-Tempo in Pixel pro Sekunde (kleiner = l
 const TRAFFIC_REFRESH_SECONDS = 300;
 /* ============================ */
 
-const API = "https://www.rmv.de/hapi";
+const API = API_PROXY ? API_PROXY.replace(/\/$/, "") : "https://www.rmv.de/hapi";
 const board = document.getElementById("board");
 const stopsEl = document.getElementById("stops");
 const hbfEl = document.getElementById("hbf");
