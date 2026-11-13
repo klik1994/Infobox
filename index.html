@@ -134,7 +134,10 @@ const STOPS = [
 ];
 
 // Darmstädter Hauptbahnhof: eigene Spalte, die hoch und runter scrollt. Auf null setzen zum Ausblenden.
-const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 24 };
+// onlyTrains: true zeigt nur Züge (keine Busse, Straßenbahnen). Die Liste darunter bestimmt, was als Zug gilt.
+// max ist höher, weil Busse und Bahnen erst nach dem Abruf herausgefiltert werden.
+const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 60, onlyTrains: true, show: 24 };
+const TRAIN_CATS = ["ICE", "IC", "EC", "ECE", "RJ", "RJX", "NJ", "EN", "FLX", "TGV", "IRE", "RE", "RB", "RS", "S", "SE", "HLB"];
 
 const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
 // RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
@@ -143,10 +146,10 @@ const REFRESH_SECONDS = 45;       // Abfrage-Intervall der Abfahrten
 const MSG_REFRESH_SECONDS = 600;  // Intervall der RMV-Störungsmeldungen
 // Betriebszeit pro Wochentag (0 = Sonntag, 1 = Montag, ... 6 = Samstag). Tage ohne Eintrag: Pause.
 const ACTIVE_SCHEDULE = {
-  1: ["15:45", "16:10"],  // Montag    (Feierabend 16:00)
-  2: ["15:45", "16:10"],  // Dienstag
-  3: ["15:45", "16:10"],  // Mittwoch
-  4: ["15:45", "16:10"],  // Donnerstag
+  1: ["15:15", "16:10"],  // Montag    (Feierabend 16:00)
+  2: ["15:15", "16:10"],  // Dienstag
+  3: ["15:15", "16:10"],  // Mittwoch
+  4: ["15:15", "16:10"],  // Donnerstag
   5: ["13:00", "13:45"]   // Freitag
 };
 const DAILY_LIMIT = 450;          // Sicherheitsgrenze (zählt nur auf diesem Gerät)
@@ -189,6 +192,7 @@ function parseDeparture(x) {
   const prod = (x.ProductAtStop || (x.Product && x.Product[0]) || {});
   const line = prod.line || prod.displayNumber || (x.name || "").replace(/^(Bus|Tram|Str|S|U|RE|RB|IC|ICE)\s*/i, "") || "?";
   return {
+    cat: String(prod.catOut || prod.catOutS || prod.catCode || "").trim().toUpperCase(),
     line: String(line).slice(0, 6),
     dir: (x.direction || "").replace(/^Frankfurt \(Main\)\s*/i, "FFM "),
     planned, real,
@@ -242,6 +246,7 @@ async function loadStop(stop) {
   const json = await res.json();
   if (json.errorCode) throw new Error(json.errorText || json.errorCode);
   return (json.Departure || []).map(parseDeparture)
+    .filter(d => !stop.onlyTrains || TRAIN_CATS.includes(d.cat))
     .filter(d => d.real)
     .sort((a, b) => a.real - b.real);
 }
@@ -433,9 +438,9 @@ function renderHbf(now, inactive) {
     rows = [note(errors[HBF.id] ? "Abfahrten konnten nicht geladen werden: " + errors[HBF.id]
                                : (inactive ? "Außerhalb der Betriebszeit." : "Lade …"))];
   } else if (!list.length) {
-    rows = [note(`In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
+    rows = [note(HBF.onlyTrains ? `In den nächsten ${DURATION_MIN} Minuten fährt hier kein Zug.` : `In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
   } else {
-    rows = list.map(d => rowFor(d, now));
+    rows = list.slice(0, HBF.show || 24).map(d => rowFor(d, now));
   }
   hbfList.replaceChildren(...rows);
 
