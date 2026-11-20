@@ -71,7 +71,7 @@
   .min span { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 3px; }
   .min.now { color: var(--ok); font-size: 26px; }
   li.cancelled .dir, li.cancelled .min { text-decoration: line-through; opacity: .5; }
-  .routes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: 1fr 1fr; gap: 10px; min-height: 0; }
+  .routes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: 1fr 1fr; gap: 10px; min-height: 0; }
   .route {
     border-radius: 14px; color: #fff; padding: 8px 12px; min-width: 0; min-height: 0;
     display: grid; grid-template-rows: auto auto 1fr;
@@ -254,12 +254,13 @@ const FOOTER = "fahrzeit";
 // Fahrzeiten mit aktuellem Verkehr (TomTom). Braucht den Worker mit Secret TOMTOM_KEY.
 // Fehlt der Schlüssel, erscheint unten automatisch der Autobahn-Lauftext.
 const ORIGIN = { name: "BTZ Weiterstadt", lat: 49.90026, lon: 8.61292 };   // Eingang Rudolf-Diesel-Straße 30
-const DESTINATIONS = [   // höchstens 5 (Raster 3 + 2, das sechste Feld zeigt den Stand)
+const DESTINATIONS = [   // höchstens 6; Schilder in der Karte (ohne Karte: Kachelraster mit Feld „Stand")
   { name: "Frankfurt",  lat: 50.1109, lon: 8.6821 },
   { name: "Heppenheim", lat: 49.6415, lon: 8.6385 },
   { name: "Mannheim",   lat: 49.4875, lon: 8.4660 },
   { name: "Groß-Gerau", lat: 49.9213, lon: 8.4846 },
-  { name: "Erbach",     lat: 49.6566, lon: 8.9947 }   // Erbach im Odenwald
+  { name: "Erbach",     lat: 49.6566, lon: 8.9947 },  // Erbach im Odenwald
+  { name: "Dieburg",    lat: 49.8985, lon: 8.8406 }
 ];
 const ROUTE_REFRESH_SECONDS = 300;  // alle 5 Minuten (nur in der Betriebszeit)
 const GREEN_UNTIL_MIN = 2;          // bis zu dieser Verzögerung bleibt die Kachel grün
@@ -683,7 +684,7 @@ function renderRoutes() {
   if (!box) return;
   box.innerHTML = "";
   const tiles = [];
-  DESTINATIONS.slice(0, 5).forEach(d => {
+  DESTINATIONS.slice(0, 6).forEach(d => {
     const r = routeData[d.name];
     const el = document.createElement("div");
     el.className = "route";
