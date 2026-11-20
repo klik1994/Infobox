@@ -109,6 +109,8 @@
   }
   #map .stop-sign .line { display: inline-block; font-size: 11px; padding: 1px 3px; border-radius: 4px; margin: 1px 1px 0; }
   #map .stop-sign .walk-min { display: inline-block; background: var(--accent); color: var(--text); font-size: 11px; padding: 1px 4px; border-radius: 8px; margin: 1px 1px 0 2px; }
+  #map .walk-end.oben { transform: translate(-100%, -100%); margin-top: -2px; }
+  #map .walk-end.unten { transform: translate(-100%, 0); margin-top: 2px; }
   #map .walk-end {
     position: absolute; transform: translate(-100%, -50%); margin-left: -10px; background: var(--text); color: #fff;
     font-size: 12px; font-weight: 800; padding: 1px 6px; border-radius: 9px; white-space: nowrap;
@@ -193,9 +195,10 @@ const STOPS = [
 ];
 
 // Darmstädter Hauptbahnhof: eigene Spalte, die hoch und runter scrollt. Auf null setzen zum Ausblenden.
-// products: 15 = nur Züge (ICE, IC, RE/RB, S-Bahn). 0 oder weglassen = alles (auch Busse und Straßenbahnen).
+// products: Zugarten als Summe: ICE = 1, IC/EC = 2, Regionalzüge RE/RB = 4, S-Bahn = 8.
+// 12 = nur S-Bahn und Regionalzüge (keine Fernzüge), 15 = alle Züge, 0 oder weglassen = alles (auch Busse und Straßenbahnen).
 // max: so viele Abfahrten werden abgerufen, show: so viele werden angezeigt (0 = alle Züge im Zeitfenster DURATION_MIN).
-const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 60, products: 15, show: 0 };
+const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 60, products: 12, show: 0 };
 
 const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
 // RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
@@ -267,10 +270,15 @@ const KARTE = { zeigen: true, nord: 49.93, sued: 49.80, west: 8.57, ost: 8.87, a
 /* ============================ */
 
 // Fußwege vom BTZ-Eingang zu den Haltestellen (OpenStreetMap, geprüft 20.11.2026) – nicht ändern.
-// Punkte als [Breite, Länge]. Robert-Bosch-Straße: Weg endet unter der B42-Brücke, dort Treppe zur Haltestelle.
+// Punkte als [Breite, Länge]. Robert-Bosch-Straße: Haltestelle auf der B42-Brücke, je Fahrtrichtung eine Treppe
+// (Nordseite: weg von Darmstadt, Südseite hinter der Unterführung: Richtung Darmstadt; vom Nutzer bestätigt).
 const FUSSWEGE = {
   "3015845": { weg: [[49.900262,8.612916],[49.900307,8.612555],[49.900374,8.612006],[49.900449,8.611394],[49.900557,8.610521],[49.900543,8.610485],[49.900536,8.610341],[49.900553,8.610179]] },
-  "3024969": { weg: [[49.900262,8.612916],[49.900307,8.612555],[49.900374,8.612006],[49.900449,8.611394],[49.900557,8.610521],[49.900543,8.610485],[49.900536,8.610341],[49.899945,8.610137],[49.899887,8.610116],[49.899813,8.610091],[49.899603,8.610018],[49.899453,8.609966],[49.899309,8.609916],[49.898572,8.60966],[49.898471,8.609623],[49.898149,8.609494],[49.898083,8.609467],[49.898068,8.60946],[49.897837,8.609353],[49.897822,8.609347],[49.897756,8.609316],[49.897731,8.609498]], ende: "Treppe hoch" },
+  "3024969": { weg: [[49.900262,8.612916],[49.900307,8.612555],[49.900374,8.612006],[49.900449,8.611394],[49.900557,8.610521],[49.900543,8.610485],[49.900536,8.610341],[49.899945,8.610137],[49.899887,8.610116],[49.899813,8.610091],[49.899603,8.610018],[49.899453,8.609966],[49.899309,8.609916],[49.898572,8.60966],[49.898471,8.609623],[49.898149,8.609494],[49.898083,8.609467],[49.898068,8.60946],[49.897837,8.609353],[49.897822,8.609347],[49.897756,8.609316],[49.897731,8.609498],[49.897671,8.609482],[49.897638,8.609583],[49.897337,8.609417]],
+    treppen: [
+      { pos: [49.897837, 8.609353], text: "Treppe Richtung Erzhausen / Worfelden", seite: "oben" },   // Nordseite der B42
+      { pos: [49.897337, 8.609417], text: "Treppe Richtung DA Schloss", seite: "unten" }              // Südseite, durch die Unterführung
+    ] },
   "3024970": { weg: [[49.900262,8.612916],[49.900176,8.613615],[49.900095,8.614277],[49.900018,8.614901],[49.900001,8.615041],[49.899936,8.615569],[49.899455,8.615485],[49.898435,8.615307],[49.898421,8.615444],[49.898416,8.615517],[49.898413,8.61559],[49.898403,8.61636],[49.898388,8.61759],[49.89838,8.618268],[49.898376,8.61863],[49.898425,8.618653],[49.898433,8.61877],[49.898454,8.618868],[49.898483,8.618925],[49.898499,8.618951],[49.898581,8.619015],[49.898572,8.619064],[49.898561,8.619126],[49.898582,8.619194],[49.898611,8.619279],[49.898767,8.619158],[49.898836,8.619102],[49.898848,8.619092]] }
 };
 
@@ -909,6 +917,7 @@ function buildWalkLayer(view, titleRect) {
       svg.appendChild(pl);
     });
     if (f.ende) badges.push({ cls: "walk-end", text: f.ende, p: pts[pts.length - 1] });
+    (f.treppen || []).forEach(t => badges.push({ cls: "walk-end " + (t.seite || ""), text: t.text, p: project(L, t.pos[0], t.pos[1]) }));
   });
 
   // Haltestellenpunkte
