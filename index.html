@@ -505,6 +505,7 @@ function render() {
     }
     stopsEl.appendChild(sec);
   });
+  hideCutRows();
   renderHbf(now, inactive);
 }
 
@@ -512,6 +513,18 @@ function render() {
 function delayColor(delay) {
   const t = Math.min(1, Math.max(0, delay / Math.max(1, VERSPAETUNG_ROT_AB)));
   return `hsl(${Math.round(135 * (1 - t))}, 75%, 32%)`;
+}
+
+// Abfahrten, die nicht mehr ganz in ihre Spalte passen, ausblenden (keine angeschnittenen Zeilen)
+function hideCutRows() {
+  stopsEl.querySelectorAll("section").forEach(sec => {
+    const bottom = sec.getBoundingClientRect().bottom;
+    let cut = false;
+    sec.querySelectorAll("ul li").forEach(li => {
+      if (!cut && li.getBoundingClientRect().bottom > bottom + 0.5) cut = true;
+      if (cut) li.style.display = "none";
+    });
+  });
 }
 
 function rowFor(d, now) {
