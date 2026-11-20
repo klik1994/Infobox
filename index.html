@@ -82,7 +82,20 @@
   .route.na { background: var(--panel); color: var(--muted); }
   .route.na .route-min { font-size: 22px; }
   .route.stand { background: var(--panel); color: var(--muted); display: flex; justify-content: center; align-items: center; text-align: center; font-size: 16px; }
-  footer.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; height: clamp(150px, 23vh, 220px); }
+  footer.split { display: grid; grid-template-columns: minmax(0, 1fr); height: max(240px, 44vh); }
+  footer.split.nomap { height: clamp(150px, 23vh, 220px); }
+  #map .route-layer { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 1; }
+  #map .route {
+    position: absolute; padding: 3px 8px 4px; border-radius: 9px; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    display: grid; grid-template-columns: auto auto; column-gap: 6px; align-items: baseline; white-space: nowrap;
+  }
+  #map .route-name { grid-column: 1 / -1; font-size: 13px; line-height: 1.2; }
+  #map .route-dir { margin-left: 4px; }
+  #map .route-min { font-size: 20px; justify-self: start; }
+  #map .route-min span { font-size: 11px; }
+  #map .route-sub { font-size: 11px; justify-self: end; }
+  #map .route.na .route-min { font-size: 16px; }
+  #map .route.stand { display: block; top: 6px; right: 6px; font-size: 12px; padding: 2px 8px; box-shadow: none; }
   #map { position: relative; overflow: hidden; border-radius: 14px; background: #E8E4DC; min-height: 0; }
   #map .map-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; opacity: 0; transition: opacity 1s; }
   #map .map-view.aktiv { opacity: 1; }
@@ -181,8 +194,8 @@ const STOPS = [
 
 // Darmstädter Hauptbahnhof: eigene Spalte, die hoch und runter scrollt. Auf null setzen zum Ausblenden.
 // products: 15 = nur Züge (ICE, IC, RE/RB, S-Bahn). 0 oder weglassen = alles (auch Busse und Straßenbahnen).
-// max: so viele Abfahrten werden abgerufen, show: so viele werden angezeigt.
-const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 30, products: 15, show: 24 };
+// max: so viele Abfahrten werden abgerufen, show: so viele werden angezeigt (0 = alle Züge im Zeitfenster DURATION_MIN).
+const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 60, products: 15, show: 0 };
 
 const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
 // RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
@@ -538,7 +551,7 @@ function renderHbf(now, inactive) {
   } else if (!list.length) {
     rows = [note(HBF.products ? `In den nächsten ${DURATION_MIN} Minuten fährt hier kein Zug.` : `In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
   } else {
-    rows = list.slice(0, HBF.show || 24).map(d => rowFor(d, now));
+    rows = (HBF.show ? list.slice(0, HBF.show) : list).map(d => rowFor(d, now));
   }
   hbfList.replaceChildren(...rows);
 
@@ -578,7 +591,7 @@ function tickClock() {
 /* ---- Fahrzeiten mit Verkehr ---- */
 const routeData = {};   // name -> { min, delay } oder { error }
 let routeLoadedAt = null;
-let routesEl = null, mapEl = null, routeTimer = null;
+let routesEl = null, mapEl = null, routeTimer = null, trafficLayout = null;
 
 function takeRouteCall() {
   const key = "routeCalls-" + new Date().toLocaleDateString("sv");
@@ -625,8 +638,11 @@ function routeColor(delay) {
 }
 
 function renderRoutes() {
-  if (!routesEl) return;
-  routesEl.innerHTML = "";
+  const layer = mapEl ? mapEl.querySelector(".map-view.verkehr .route-layer") : null;
+  const box = layer || routesEl;
+  if (!box) return;
+  box.innerHTML = "";
+  const tiles = [];
   DESTINATIONS.slice(0, 5).forEach(d => {
     const r = routeData[d.name];
     const el = document.createElement("div");
@@ -634,6 +650,7 @@ function renderRoutes() {
     const nm = document.createElement("div");
     nm.className = "route-name";
     nm.textContent = d.name;
+    if (mapEl) { const dr = document.createElement("span"); dr.className = "route-dir"; nm.appendChild(dr); }
     const mn = document.createElement("div");
     mn.className = "route-min";
     const sm = document.createElement("div");
@@ -648,12 +665,75 @@ function renderRoutes() {
       mn.innerHTML = `${r.min}<span>min</span>`;
     }
     el.append(nm, sm, mn);
-    routesEl.appendChild(el);
+    box.appendChild(el);
+    tiles.push({ el, d });
   });
   const st = document.createElement("div");
   st.className = "route stand";
   st.textContent = routeLoadedAt ? `Stand ${pad(routeLoadedAt.getHours())}:${pad(routeLoadedAt.getMinutes())}` : "Stand –";
-  routesEl.appendChild(st);
+  box.appendChild(st);
+  if (layer && trafficLayout) placeCityLabels(layer, trafficLayout, tiles, st);
+}
+
+// Richtungspfeil für einen Winkel (Bildschirm: x nach rechts, y nach unten)
+function arrowFor(dx, dy) {
+  const a = Math.atan2(-dy, dx) * 180 / Math.PI;   // 0 = Osten, 90 = Norden
+  const arrows = ["→", "↗", "↑", "↖", "←", "↙", "↓", "↘"];
+  return arrows[((Math.round(a / 45) % 8) + 8) % 8];
+}
+
+// Setzt die Fahrzeit-Schilder in die Karte: an die Stadt, wenn sie sichtbar ist, sonst an den Rand in ihre Richtung
+function placeCityLabels(layer, L, tiles, standEl) {
+  const W = layer.clientWidth, H = layer.clientHeight, m = 6;
+  const lr = layer.getBoundingClientRect();
+  const rel = r => ({ left: r.left - lr.left, top: r.top - lr.top, right: r.right - lr.left, bottom: r.bottom - lr.top });
+  const view = layer.parentNode;
+  const taken = [rel(standEl.getBoundingClientRect())];
+  [".map-note", ".btz-label", ".btz-marker"].forEach(sel => { const e = view.querySelector(sel); if (e) taken.push(rel(e.getBoundingClientRect())); });
+  const t = mapEl.querySelector(".map-title");
+  if (t) taken.push(rel(t.getBoundingClientRect()));
+  const btz = project(L, ORIGIN.lat, ORIGIN.lon);
+
+  tiles.forEach(({ el, d }) => {
+    const p = project(L, d.lat, d.lon);
+    const inside = p.x > m && p.x < W - m && p.y > m && p.y < H - m;
+    const dirEl = el.querySelector(".route-dir");
+    if (dirEl) dirEl.textContent = inside ? "" : arrowFor(p.x - btz.x, p.y - btz.y);
+    const sw = el.offsetWidth, sh = el.offsetHeight;
+    const minX = m, maxX = W - m - sw, minY = m, maxY = H - m - sh;
+    let x, y, axis;
+    if (inside) {
+      x = p.x - sw / 2; y = p.y - sh - 4; axis = "x";
+    } else {
+      // Schnittpunkt der Linie BTZ → Stadt mit dem Rechteck, in dem die Schildmitte liegen darf
+      const dx = p.x - btz.x, dy = p.y - btz.y;
+      const cx0 = minX + sw / 2, cx1 = maxX + sw / 2, cy0 = minY + sh / 2, cy1 = maxY + sh / 2;
+      let tt = Infinity;
+      if (dx > 0) tt = Math.min(tt, (cx1 - btz.x) / dx);
+      if (dx < 0) tt = Math.min(tt, (cx0 - btz.x) / dx);
+      if (dy > 0) tt = Math.min(tt, (cy1 - btz.y) / dy);
+      if (dy < 0) tt = Math.min(tt, (cy0 - btz.y) / dy);
+      if (!isFinite(tt) || tt < 0) tt = 0;
+      const cx = btz.x + dx * tt, cy = btz.y + dy * tt;
+      x = cx - sw / 2; y = cy - sh / 2;
+      axis = (Math.abs(cy - cy0) < 1 || Math.abs(cy - cy1) < 1) ? "x" : "y";   // oben/unten → seitlich schieben
+    }
+    // Freien Platz suchen: entlang der Kante schieben, bis nichts mehr überdeckt wird
+    let best = null;
+    for (let k = 0; k <= 80 && !best; k++) {
+      for (const sgn of k ? [1, -1] : [1]) {
+        let cx = x, cy = y;
+        if (axis === "x") cx += sgn * k * 6; else cy += sgn * k * 6;
+        cx = Math.min(maxX, Math.max(minX, cx)); cy = Math.min(maxY, Math.max(minY, cy));
+        const r = { left: cx, top: cy, right: cx + sw, bottom: cy + sh };
+        if (!taken.some(o => overlapArea(r, o) > 0)) { best = r; break; }
+      }
+    }
+    if (!best) best = { left: Math.min(maxX, Math.max(minX, x)), top: Math.min(maxY, Math.max(minY, y)), right: 0, bottom: 0 };
+    best.right = best.left + sw; best.bottom = best.top + sh;
+    el.style.left = best.left + "px"; el.style.top = best.top + "px";
+    taken.push(best);
+  });
 }
 
 /* ---- Verkehrskarte (ohne Bibliothek, Kacheln über den Worker) ---- */
@@ -753,8 +833,10 @@ function buildMap() {
   const v1 = el("div", "map-view verkehr");
   mapEl.insertBefore(v1, title);
   const t1 = buildTileLayer(v1, KARTE, 9, 13, true);
+  trafficLayout = t1.L;
   addBtz(v1, t1.L);
   v1.appendChild(el("div", "map-note", "Verkehr: TomTom"));
+  v1.appendChild(el("div", "route-layer"));
 
   if (KARTE.wechsel > 0) {
     const v2 = el("div", "map-view fusswege");
@@ -765,6 +847,7 @@ function buildMap() {
   }
   showView(mapView);
   refreshTrafficLayer(true);
+  renderRoutes();
 }
 
 // Gebiet der Fußweg-Karte: alle Wegpunkte, Haltestellen und BTZ, mit Rand
@@ -915,16 +998,17 @@ function refreshTrafficLayer(force) {
 
 function startFahrzeit() {
   trafficEl.innerHTML = "";
-  trafficEl.className = "split";
-  routesEl = document.createElement("div");
-  routesEl.className = "routes";
-  trafficEl.appendChild(routesEl);
   if (KARTE && KARTE.zeigen) {
+    // Große Karte über die ganze Breite, Fahrzeiten als Schilder in der Karte
+    trafficEl.className = "split";
     mapEl = document.createElement("div");
     mapEl.id = "map";
     trafficEl.appendChild(mapEl);
   } else {
-    trafficEl.style.gridTemplateColumns = "1fr";
+    trafficEl.className = "split nomap";
+    routesEl = document.createElement("div");
+    routesEl.className = "routes";
+    trafficEl.appendChild(routesEl);
   }
   renderRoutes();
   buildMap();
@@ -945,7 +1029,7 @@ let tickerTimer = null;
 function startTicker() {
   if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
   if (mapSwitchTimer) { clearInterval(mapSwitchTimer); mapSwitchTimer = null; }
-  routesEl = null; mapEl = null; trafficImgs = [];
+  routesEl = null; mapEl = null; trafficImgs = []; trafficLayout = null;
   trafficEl.className = "";
   trafficEl.style.gridTemplateColumns = "";
   trafficEl.innerHTML = "";
