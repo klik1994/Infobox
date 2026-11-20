@@ -466,7 +466,7 @@ function render() {
         const b = document.createElement("b");
         b.textContent = a.head || "Hinweis";
         el.appendChild(b);
-        if (a.lead) {
+        if (a.lead && a.lead.trim() !== (a.head || "").trim()) {
           const t = a.lead.length > 140 ? a.lead.slice(0, 137) + "…" : a.lead;
           el.appendChild(document.createTextNode(t));
         }
