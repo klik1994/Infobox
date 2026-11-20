@@ -201,6 +201,7 @@ const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
 // RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
 // Beispiel: 3 Haltestellen, alle 45 Sek, 1 Stunde pro Tag = ca. 180–240 Abrufe/Tag.
 const REFRESH_SECONDS = 45;       // Abfrage-Intervall der Abfahrten
+const MELDUNGEN = false;          // RMV-Störungsmeldungen unten in den Spalten anzeigen (true = an, false = aus)
 const MSG_REFRESH_SECONDS = 600;  // Intervall der RMV-Störungsmeldungen
 // Betriebszeit pro Wochentag (0 = Sonntag, 1 = Montag, ... 6 = Samstag). Tage ohne Eintrag: Pause.
 const ACTIVE_SCHEDULE = {
@@ -424,7 +425,7 @@ async function doRefresh() {
   if (results.some(r => r.status === "fulfilled")) lastOk = new Date();
   render();
   // Meldungen erst, wenn die Linien bekannt sind; danach alle MSG_REFRESH_SECONDS
-  if (Date.now() - lastMsg > MSG_REFRESH_SECONDS * 1000) loadMessages().then(render);
+  if (MELDUNGEN && Date.now() - lastMsg > MSG_REFRESH_SECONDS * 1000) loadMessages().then(render);
 }
 
 function render() {
@@ -473,7 +474,7 @@ function render() {
       sec.appendChild(ul);
     }
     const here = shownLines(stop);
-    const rel = alertsList.filter(a => (a.lines || []).some(l => here.includes(l))).slice(0, 2);
+    const rel = MELDUNGEN ? alertsList.filter(a => (a.lines || []).some(l => here.includes(l))).slice(0, 2) : [];
     if (rel.length) {
       const box = document.createElement("div");
       box.className = "alerts";
