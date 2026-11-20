@@ -62,12 +62,56 @@
     border-radius: 8px; text-align: center; padding: 6px 0;
   }
   .dir { font-size: 21px; line-height: 1.2; min-width: 0; }
+  .dest { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
   .dir small { display: block; font-size: 15px; color: var(--muted); margin-top: 3px; }
   .dir small.late { color: var(--late); }
   .min { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .min span { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 3px; }
   .min.now { color: var(--ok); font-size: 26px; }
   li.cancelled .dir, li.cancelled .min { text-decoration: line-through; opacity: .5; }
+  .routes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: 1fr 1fr; gap: 10px; min-height: 0; }
+  .route {
+    border-radius: 14px; color: #fff; padding: 8px 12px; min-width: 0; min-height: 0;
+    display: grid; grid-template-rows: auto auto 1fr;
+    transition: background-color .6s;
+  }
+  .route-name { font-size: 18px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .route-sub { font-size: 13px; font-weight: 500; line-height: 1.2; opacity: .95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .route-min { align-self: end; justify-self: end; font-size: 28px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1; }
+  .route-min span { font-size: 14px; font-weight: 600; margin-left: 2px; }
+  .route.na { background: var(--panel); color: var(--muted); }
+  .route.na .route-min { font-size: 22px; }
+  .route.stand { background: var(--panel); color: var(--muted); display: flex; justify-content: center; align-items: center; text-align: center; font-size: 16px; }
+  footer.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; height: clamp(150px, 23vh, 220px); }
+  #map { position: relative; overflow: hidden; border-radius: 14px; background: #E8E4DC; min-height: 0; }
+  #map .map-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; opacity: 0; transition: opacity 1s; }
+  #map .map-view.aktiv { opacity: 1; }
+  #map .map-view.fusswege { background: #F2EFE9; }
+  #map .map-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #map .map-title { position: absolute; left: 6px; top: 6px; z-index: 2; background: var(--text); color: #fff; font-size: 12px; font-weight: 800; padding: 2px 7px; border-radius: 5px; }
+  #map svg.walk { position: absolute; left: 0; top: 0; overflow: visible; }
+  #map .stop-sign {
+    position: absolute; background: #fff; color: var(--text); border: 2px solid var(--text); border-radius: 7px;
+    padding: 1px 4px; font-size: 11px; font-weight: 800; white-space: nowrap; line-height: 1.15; text-align: center;
+  }
+  #map .stop-sign .line { display: inline-block; font-size: 11px; padding: 1px 3px; border-radius: 4px; margin: 1px 1px 0; }
+  #map .stop-sign .walk-min { display: inline-block; background: var(--accent); color: var(--text); font-size: 11px; padding: 1px 4px; border-radius: 8px; margin: 1px 1px 0 2px; }
+  #map .walk-end {
+    position: absolute; transform: translate(-100%, -50%); margin-left: -10px; background: var(--text); color: #fff;
+    font-size: 12px; font-weight: 800; padding: 1px 6px; border-radius: 9px; white-space: nowrap;
+  }
+  #map img { position: absolute; width: 256px; height: 256px; display: block; user-select: none; }
+  #map img.hidden { visibility: hidden; }
+  #map .btz-marker {
+    position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+    background: var(--accent); border: 3px solid var(--text); box-shadow: 0 0 0 2px #fff;
+  }
+  #map .btz-label {
+    position: absolute; transform: translate(12px, -50%); background: #fff; color: var(--text);
+    font-size: 13px; font-weight: 800; padding: 1px 6px; border-radius: 4px;
+  }
+  #map .map-note { position: absolute; right: 4px; bottom: 3px; font-size: 10px; color: var(--muted); background: rgba(255,255,255,.8); padding: 1px 5px; border-radius: 3px; }
+  #map .map-msg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 18px; background: var(--panel); }
   footer { padding: 0 20px 18px; }
   footer:empty { display: none; }
   .ticker { display: flex; align-items: center; background: var(--panel); border-radius: 14px; overflow: hidden; height: 64px; }
@@ -96,13 +140,14 @@
   .hbf-list.scrolling { animation: hbfscroll 30s ease-in-out infinite alternate; }
   .hbf-list li.msgli { display: block; }
   @keyframes hbfscroll { 0%, 8% { transform: translateY(0); } 92%, 100% { transform: translateY(var(--dist, 0px)); } }
-  main.dense h2 { font-size: 21px; padding: 14px; }
-  main.dense li { grid-template-columns: 54px 1fr auto; gap: 10px; padding: 10px 12px; }
-  main.dense .line { font-size: 20px; padding: 5px 0; }
-  main.dense .dir { font-size: 17px; }
-  main.dense .dir small { font-size: 13px; }
-  main.dense .min { font-size: 26px; }
-  main.dense .min.now { font-size: 20px; }
+  main.dense h2 { font-size: 21px; padding: 12px 14px; }
+  main.dense li { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 7px; padding: 8px 9px; }
+  main.dense .line { font-size: 17px; padding: 5px 0; border-radius: 6px; }
+  main.dense .dir { font-size: 17px; line-height: 1.15; }
+  main.dense .dir small { font-size: 12.5px; margin-top: 2px; }
+  main.dense .min { font-size: 25px; }
+  main.dense .min span { font-size: 13px; margin-left: 2px; }
+  main.dense .min.now { font-size: 18px; }
   .msg { padding: 24px 20px; color: var(--muted); font-size: 18px; line-height: 1.4; }
   .msg.error { color: var(--late); }
   @media (max-width: 900px) {
@@ -127,17 +172,17 @@ const ACCESS_ID = "";   // nur nötig, wenn API_PROXY leer ist (dann geht es dir
 
 // Genau drei (oder beliebig viele) Haltestellen: Anzeigename + Haltestellen-ID.
 // IDs findest du, indem du diese Seite mit ?suche=Haltestellenname öffnest.
+// lat/lon: Lage der Haltestelle, linien: Schild auf der Fußweg-Karte, gehzeit: Minuten zu Fuß vom BTZ-Eingang
 const STOPS = [
-  { name: "Lagerstraße", id: "3024970" },
-  { name: "Rudolf-Diesel-Str./BTZ", id: "3015845" },
-  { name: "Robert-Bosch-Straße/B42", id: "3024969" }
+  { name: "Lagerstraße",             id: "3024970", lat: 49.898842, lon: 8.619073, linien: ["X14", "X15"], gehzeit: 9 },
+  { name: "Rudolf-Diesel-Str./BTZ",  id: "3015845", lat: 49.900496, lon: 8.610165, linien: ["WE3", "WE4"], gehzeit: 3 },
+  { name: "Robert-Bosch-Straße/B42", id: "3024969", lat: 49.897881, lon: 8.609778, linien: ["WE1", "WE2"], gehzeit: 7 }
 ];
 
 // Darmstädter Hauptbahnhof: eigene Spalte, die hoch und runter scrollt. Auf null setzen zum Ausblenden.
-// onlyTrains: true zeigt nur Züge (keine Busse, Straßenbahnen). Die Liste darunter bestimmt, was als Zug gilt.
-// max ist höher, weil Busse und Bahnen erst nach dem Abruf herausgefiltert werden.
-const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 60, onlyTrains: true, show: 24 };
-const TRAIN_CATS = ["ICE", "IC", "EC", "ECE", "RJ", "RJX", "NJ", "EN", "FLX", "TGV", "IRE", "RE", "RB", "RS", "S", "SE", "HLB"];
+// products: 15 = nur Züge (ICE, IC, RE/RB, S-Bahn). 0 oder weglassen = alles (auch Busse und Straßenbahnen).
+// max: so viele Abfahrten werden abgerufen, show: so viele werden angezeigt.
+const HBF = { name: "Darmstadt Hbf", id: "3004734", max: 30, products: 15, show: 24 };
 
 const MAX_PER_STOP = 8;      // Abfahrten pro Haltestelle
 // RMV erlaubt max. 500 Abrufe pro Tag. Jede Haltestelle = 1 Abruf pro Aktualisierung.
@@ -146,14 +191,23 @@ const REFRESH_SECONDS = 45;       // Abfrage-Intervall der Abfahrten
 const MSG_REFRESH_SECONDS = 600;  // Intervall der RMV-Störungsmeldungen
 // Betriebszeit pro Wochentag (0 = Sonntag, 1 = Montag, ... 6 = Samstag). Tage ohne Eintrag: Pause.
 const ACTIVE_SCHEDULE = {
-  1: ["15:45", "16:10"],  // Montag    (Feierabend 16:00)
-  2: ["15:45", "16:10"],  // Dienstag
-  3: ["15:45", "16:10"],  // Mittwoch
-  4: ["15:45", "16:10"],  // Donnerstag
+  1: ["15:15", "16:10"],  // Montag    (Feierabend 16:00)
+  2: ["15:15", "16:10"],  // Dienstag
+  3: ["15:15", "16:10"],  // Mittwoch
+  4: ["15:15", "16:10"],  // Donnerstag
   5: ["13:00", "13:45"]   // Freitag
 };
 const DAILY_LIMIT = 450;          // Sicherheitsgrenze (zählt nur auf diesem Gerät)
 const DURATION_MIN = 90;     // Zeitfenster in Minuten
+// Abkürzungen für Fahrtziele, damit sie in die schmalen Spalten passen: [lang, kurz]
+const ABKUERZUNGEN = [
+  ["Frankfurt (Main) ", "FFM "],
+  ["Darmstadt ", "DA "],
+  ["Hauptbahnhof", "Hbf"],
+  ["Bahnhof", "Bf"]
+];
+const FETCH_TIMEOUT_SECONDS = 15; // so lange wird auf eine Antwort gewartet, dann gilt sie als fehlgeschlagen
+const STALE_SECONDS = 180;        // so lange bleibt nach Fehlern die letzte Liste stehen, danach erscheint der Fehler
 
 // Autobahn-Verkehrsmeldungen (kostenlos, ohne Schlüssel). Leer lassen ([]), um sie auszublenden.
 const AUTOBAHNEN = ["A5", "A67"];
@@ -168,7 +222,40 @@ const AUTOBAHN_FILTER = [
 const AUTOBAHN_MAX = 8;      // maximal angezeigte Meldungen im Lauftext
 const TICKER_SPEED = 90;     // Lauftext-Tempo in Pixel pro Sekunde (kleiner = langsamer)
 const TRAFFIC_REFRESH_SECONDS = 300;
+
+// ---- Unterer Bereich: "fahrzeit" (Fahrzeiten mit Verkehr), "verkehr" (Autobahn-Lauftext) oder "aus" ----
+const FOOTER = "fahrzeit";
+
+// Fahrzeiten mit aktuellem Verkehr (TomTom). Braucht den Worker mit Secret TOMTOM_KEY.
+// Fehlt der Schlüssel, erscheint unten automatisch der Autobahn-Lauftext.
+const ORIGIN = { name: "BTZ Weiterstadt", lat: 49.90026, lon: 8.61292 };   // Eingang Rudolf-Diesel-Straße 30
+const DESTINATIONS = [   // höchstens 5 (Raster 3 + 2, das sechste Feld zeigt den Stand)
+  { name: "Frankfurt",  lat: 50.1109, lon: 8.6821 },
+  { name: "Heppenheim", lat: 49.6415, lon: 8.6385 },
+  { name: "Mannheim",   lat: 49.4875, lon: 8.4660 },
+  { name: "Groß-Gerau", lat: 49.9213, lon: 8.4846 },
+  { name: "Erbach",     lat: 49.6566, lon: 8.9947 }   // Erbach im Odenwald
+];
+const ROUTE_REFRESH_SECONDS = 300;  // alle 5 Minuten (nur in der Betriebszeit)
+const GREEN_UNTIL_MIN = 2;          // bis zu dieser Verzögerung bleibt die Kachel grün
+const RED_AT_DELAY_MIN = 15;        // ab dieser Verzögerung ist die Kachel ganz rot
+const ROUTE_DAILY_LIMIT = 300;      // Sicherheitsgrenze für TomTom-Abrufe pro Tag (auf diesem Gerät)
+
+// Verkehrskarte rechts unten (TomTom). Gebiet über die vier Ränder (Breiten-/Längengrad).
+// Voreinstellung: Raum Darmstadt, Weiterstadt bis Dieburg, Arheilgen bis Eberstadt.
+// zeigen: false blendet die Karte aus. aktualisieren: Sekunden bis zum Nachladen der Verkehrslage.
+// wechsel: Sekunden pro Ansicht im Wechsel Verkehr / Fußwege zu den Haltestellen (0 = nur Verkehr).
+// Die Fußweg-Ansicht muss im Gebiet liegen, für das der Worker Nahansicht-Bilder freigibt (TILE_NAH in worker.js).
+const KARTE = { zeigen: true, nord: 49.93, sued: 49.80, west: 8.57, ost: 8.87, aktualisieren: 300, wechsel: 20 };
 /* ============================ */
+
+// Fußwege vom BTZ-Eingang zu den Haltestellen (OpenStreetMap, geprüft 20.11.2026) – nicht ändern.
+// Punkte als [Breite, Länge]. Robert-Bosch-Straße: Weg endet unter der B42-Brücke, dort Treppe zur Haltestelle.
+const FUSSWEGE = {
+  "3015845": { weg: [[49.900262,8.612916],[49.900307,8.612555],[49.900374,8.612006],[49.900449,8.611394],[49.900557,8.610521],[49.900543,8.610485],[49.900536,8.610341],[49.900553,8.610179]] },
+  "3024969": { weg: [[49.900262,8.612916],[49.900307,8.612555],[49.900374,8.612006],[49.900449,8.611394],[49.900557,8.610521],[49.900543,8.610485],[49.900536,8.610341],[49.899945,8.610137],[49.899887,8.610116],[49.899813,8.610091],[49.899603,8.610018],[49.899453,8.609966],[49.899309,8.609916],[49.898572,8.60966],[49.898471,8.609623],[49.898149,8.609494],[49.898083,8.609467],[49.898068,8.60946],[49.897837,8.609353],[49.897822,8.609347],[49.897756,8.609316],[49.897731,8.609498]], ende: "Treppe hoch" },
+  "3024970": { weg: [[49.900262,8.612916],[49.900176,8.613615],[49.900095,8.614277],[49.900018,8.614901],[49.900001,8.615041],[49.899936,8.615569],[49.899455,8.615485],[49.898435,8.615307],[49.898421,8.615444],[49.898416,8.615517],[49.898413,8.61559],[49.898403,8.61636],[49.898388,8.61759],[49.89838,8.618268],[49.898376,8.61863],[49.898425,8.618653],[49.898433,8.61877],[49.898454,8.618868],[49.898483,8.618925],[49.898499,8.618951],[49.898581,8.619015],[49.898572,8.619064],[49.898561,8.619126],[49.898582,8.619194],[49.898611,8.619279],[49.898767,8.619158],[49.898836,8.619102],[49.898848,8.619092]] }
+};
 
 const API = API_PROXY ? API_PROXY.replace(/\/$/, "") : "https://www.rmv.de/hapi";
 const board = document.getElementById("board");
@@ -177,9 +264,40 @@ const hbfEl = document.getElementById("hbf");
 const statusEl = document.getElementById("status");
 let data = {};   // id -> Liste der Abfahrten
 let errors = {}; // id -> Fehlertext
+let okAt = {};   // id -> Zeitpunkt des letzten erfolgreichen Abrufs
+
+// Fehler anzeigen, wenn nie geladen wurde oder der letzte Erfolg zu lange her ist
+function showError(id) {
+  return errors[id] && (!data[id] || Date.now() - (okAt[id] || 0) > STALE_SECONDS * 1000);
+}
 let lastOk = null;
+const LOADED_AT = Date.now();
 
 function pad(n) { return String(n).padStart(2, "0"); }
+
+// Abruf mit Zeitlimit. Fehler tragen .status (HTTP-Status) und .body (Antwort, falls lesbar).
+async function fetchJson(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_SECONDS * 1000);
+  let res;
+  try {
+    res = await fetch(url, { signal: ctrl.signal });
+  } catch (e) {
+    throw new Error(e && e.name === "AbortError" ? "Zeitüberschreitung" : "Keine Verbindung");
+  } finally {
+    clearTimeout(timer);
+  }
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const err = new Error("HTTP " + res.status);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  if (body === null) throw new Error("Antwort unlesbar");
+  return body;
+}
 
 function toDate(d, t) {
   if (!d || !t) return null;
@@ -190,11 +308,12 @@ function parseDeparture(x) {
   const planned = toDate(x.date, x.time);
   const real = toDate(x.rtDate || x.date, x.rtTime) || planned;
   const prod = (x.ProductAtStop || (x.Product && x.Product[0]) || {});
-  const line = prod.line || prod.displayNumber || (x.name || "").replace(/^(Bus|Tram|Str|S|U|RE|RB|IC|ICE)\s*/i, "") || "?";
+  const cat = String(prod.catOut || prod.catOutS || prod.catCode || "").trim().toUpperCase();
+  const line = prod.line || cat || prod.displayNumber || (x.name || "").replace(/^(Bus|Tram|Str|S|U|RE|RB|IC|ICE)\s*/i, "") || "?";
   return {
-    cat: String(prod.catOut || prod.catOutS || prod.catCode || "").trim().toUpperCase(),
+    cat,
     line: String(line).slice(0, 6),
-    dir: (x.direction || "").replace(/^Frankfurt \(Main\)\s*/i, "FFM "),
+    dir: ABKUERZUNGEN.reduce((t, [lang, kurz]) => t.split(lang).join(kurz), x.direction || ""),
     planned, real,
     cancelled: x.cancelled === true || x.cancelled === "true"
   };
@@ -240,55 +359,55 @@ async function loadStop(stop) {
   if (!takeCall()) throw new Error("Tageslimit erreicht");
   const url = `${API}/departureBoard?accessId=${encodeURIComponent(ACCESS_ID)}` +
     `&id=${encodeURIComponent(stop.id)}&format=json&maxJourneys=${stop.max || MAX_PER_STOP}` +
-    `&duration=${DURATION_MIN}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const json = await res.json();
+    `&duration=${DURATION_MIN}` + (stop.products ? `&products=${stop.products}` : "");
+  const json = await fetchJson(url);
   if (json.errorCode) throw new Error(json.errorText || json.errorCode);
   return (json.Departure || []).map(parseDeparture)
-    .filter(d => !stop.onlyTrains || TRAIN_CATS.includes(d.cat))
     .filter(d => d.real)
     .sort((a, b) => a.real - b.real);
 }
 
-let alertsList = [];
+let alertsList = [];   // { head, lead, lines }
 let lastMsg = 0;
-function normId(s) {
-  const m = /L=(\d+)/.exec(String(s));
-  return String(m ? m[1] : s).replace(/^0+/, "");
+
+// Linien, die gerade an den Bushaltestellen angezeigt werden
+function shownLines(stop) {
+  return [...new Set((data[stop.id] || []).map(d => d.line))];
 }
 
 async function loadMessages() {
+  const lines = [...new Set(STOPS.flatMap(shownLines))];
+  if (!lines.length || !isActive()) return;
   lastMsg = Date.now();
-  if (!isActive() || !takeCall()) return;
+  if (!takeCall()) return;
   try {
-    const url = `${API}/himSearch?accessId=${encodeURIComponent(ACCESS_ID)}&format=json`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const json = await res.json();
-    const raw = json.Message || (json.Messages && json.Messages.Message) || [];
-    alertsList = raw.map(m => ({
-      head: m.head || "",
-      lead: m.lead || m.text || "",
-      stops: (m.affectedStop || []).map(s => normId(s.extId || s.id || ""))
-    })).filter(a => a.head || a.lead);
+    const json = await fetchJson(`${API}/messages?lines=${encodeURIComponent(lines.join(","))}`);
+    alertsList = json.messages || [];
   } catch (e) {
-    console.warn("Verkehrsmeldungen nicht verfügbar:", e.message);
+    console.warn("Störungsmeldungen nicht verfügbar:", e.message);
   }
 }
 
+let refreshing = false;
 async function refresh() {
   if (!isActive()) { render(); return; }
+  if (refreshing) return;   // vorige Aktualisierung läuft noch
+  refreshing = true;
+  try { await doRefresh(); } finally { refreshing = false; }
+}
+
+async function doRefresh() {
   lastFetch = Date.now();
-  if (Date.now() - lastMsg > MSG_REFRESH_SECONDS * 1000) loadMessages().then(render);
   const results = await Promise.allSettled(allStops().map(loadStop));
   results.forEach((r, i) => {
     const id = allStops()[i].id;
-    if (r.status === "fulfilled") { data[id] = r.value; delete errors[id]; }
+    if (r.status === "fulfilled") { data[id] = r.value; okAt[id] = Date.now(); delete errors[id]; }
     else { errors[id] = r.reason && r.reason.message ? r.reason.message : "Unbekannter Fehler"; }
   });
   if (results.some(r => r.status === "fulfilled")) lastOk = new Date();
   render();
+  // Meldungen erst, wenn die Linien bekannt sind; danach alle MSG_REFRESH_SECONDS
+  if (Date.now() - lastMsg > MSG_REFRESH_SECONDS * 1000) loadMessages().then(render);
 }
 
 function render() {
@@ -319,7 +438,7 @@ function render() {
     sec.appendChild(h);
 
     const list = (data[stop.id] || []).filter(d => d.real - now > -60000);
-    if (!data[stop.id]) {
+    if (!data[stop.id] || showError(stop.id)) {
       const m = document.createElement("div");
       m.className = "msg" + (errors[stop.id] ? " error" : "");
       m.textContent = errors[stop.id]
@@ -333,35 +452,11 @@ function render() {
       sec.appendChild(m);
     } else {
       const ul = document.createElement("ul");
-      list.slice(0, MAX_PER_STOP).forEach(d => {
-        const mins = Math.floor((d.real - now) / 60000);
-        const delay = d.planned ? Math.round((d.real - d.planned) / 60000) : 0;
-        const li = document.createElement("li");
-        if (d.cancelled) li.className = "cancelled";
-
-        const line = document.createElement("div");
-        line.className = "line"; line.textContent = d.line;
-
-        const dir = document.createElement("div");
-        dir.className = "dir"; dir.textContent = d.dir;
-        const sub = document.createElement("small");
-        const pt = d.planned ? `${pad(d.planned.getHours())}:${pad(d.planned.getMinutes())}` : "";
-        if (d.cancelled) { sub.textContent = "Fällt aus"; sub.className = "late"; }
-        else if (delay >= 1) { sub.textContent = `${pt} Uhr, +${delay} min`; sub.className = "late"; }
-        else { sub.textContent = `${pt} Uhr, pünktlich`; }
-        dir.appendChild(sub);
-
-        const mn = document.createElement("div");
-        mn.className = "min" + (mins <= 0 ? " now" : "");
-        if (mins <= 0) mn.textContent = "jetzt";
-        else mn.innerHTML = `${mins}<span>min</span>`;
-
-        li.append(line, dir, mn);
-        ul.appendChild(li);
-      });
+      list.slice(0, MAX_PER_STOP).forEach(d => ul.appendChild(rowFor(d, now)));
       sec.appendChild(ul);
     }
-    const rel = alertsList.filter(a => a.stops.includes(normId(stop.id))).slice(0, 2);
+    const here = shownLines(stop);
+    const rel = alertsList.filter(a => (a.lines || []).some(l => here.includes(l))).slice(0, 2);
     if (rel.length) {
       const box = document.createElement("div");
       box.className = "alerts";
@@ -392,12 +487,15 @@ function rowFor(d, now) {
   const line = document.createElement("div");
   line.className = "line"; line.textContent = d.line;
   const dir = document.createElement("div");
-  dir.className = "dir"; dir.textContent = d.dir;
+  dir.className = "dir";
+  const dest = document.createElement("span");
+  dest.className = "dest"; dest.textContent = d.dir;
+  dir.appendChild(dest);
   const sub = document.createElement("small");
   const pt = d.planned ? `${pad(d.planned.getHours())}:${pad(d.planned.getMinutes())}` : "";
   if (d.cancelled) { sub.textContent = "Fällt aus"; sub.className = "late"; }
-  else if (delay >= 1) { sub.textContent = `${pt} Uhr, +${delay} min`; sub.className = "late"; }
-  else { sub.textContent = `${pt} Uhr, pünktlich`; }
+  else if (delay >= 1) { sub.textContent = `${pt} +${delay} min`; sub.className = "late"; }
+  else { sub.textContent = `${pt} pünktlich`; }
   dir.appendChild(sub);
   const mn = document.createElement("div");
   mn.className = "min" + (mins <= 0 ? " now" : "");
@@ -434,11 +532,11 @@ function renderHbf(now, inactive) {
 
   const list = (data[HBF.id] || []).filter(d => d.real - now > -60000);
   let rows;
-  if (!data[HBF.id]) {
+  if (!data[HBF.id] || showError(HBF.id)) {
     rows = [note(errors[HBF.id] ? "Abfahrten konnten nicht geladen werden: " + errors[HBF.id]
                                : (inactive ? "Außerhalb der Betriebszeit." : "Lade …"))];
   } else if (!list.length) {
-    rows = [note(HBF.onlyTrains ? `In den nächsten ${DURATION_MIN} Minuten fährt hier kein Zug.` : `In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
+    rows = [note(HBF.products ? `In den nächsten ${DURATION_MIN} Minuten fährt hier kein Zug.` : `In den nächsten ${DURATION_MIN} Minuten fährt hier nichts.`)];
   } else {
     rows = list.slice(0, HBF.show || 24).map(d => rowFor(d, now));
   }
@@ -453,9 +551,407 @@ function renderHbf(now, inactive) {
   hbfList.classList.toggle("scrolling", dist > 4);
 }
 
+// Einmal am Tag neu laden (außerhalb der Betriebszeit): räumt auf und holt neue Versionen von GitHub
+// Neu geladen wird nur, wenn die Seite gerade erreichbar ist, sonst bliebe Safari auf einer Fehlerseite stehen.
+let reloadChecking = false;
+async function maybeReload() {
+  if (reloadChecking || isActive() || Date.now() - LOADED_AT <= 20 * 3600 * 1000) return;
+  reloadChecking = true;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_SECONDS * 1000);
+  try {
+    const res = await fetch(location.href, { cache: "no-store", signal: ctrl.signal });
+    if (res.ok) { location.reload(); return; }
+  } catch (e) {
+    // offline: später erneut versuchen
+  } finally {
+    clearTimeout(timer);
+  }
+  reloadChecking = false;
+}
+
 function tickClock() {
   const n = new Date();
   document.getElementById("clock").textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}`;
+}
+
+/* ---- Fahrzeiten mit Verkehr ---- */
+const routeData = {};   // name -> { min, delay } oder { error }
+let routeLoadedAt = null;
+let routesEl = null, mapEl = null, routeTimer = null;
+
+function takeRouteCall() {
+  const key = "routeCalls-" + new Date().toLocaleDateString("sv");
+  try {
+    const n = Number(localStorage.getItem(key) || 0);
+    if (n >= ROUTE_DAILY_LIMIT) return false;
+    localStorage.setItem(key, String(n + 1));
+  } catch (e) {}
+  return true;
+}
+
+async function loadRoute(dest) {
+  if (!takeRouteCall()) throw new Error("Tageslimit erreicht");
+  try {
+    return await fetchJson(`${API}/route?origin=${ORIGIN.lat},${ORIGIN.lon}&destination=${dest.lat},${dest.lon}`);
+  } catch (e) {
+    const err = new Error(e.body && e.body.error ? e.body.error : e.message);
+    err.status = e.status;
+    throw err;
+  }
+}
+
+async function loadRoutes() {
+  if (!API_PROXY || !isActive()) { renderRoutes(); return; }
+  const res = await Promise.allSettled(DESTINATIONS.map(loadRoute));
+  // Kein TomTom-Schlüssel im Worker: statt Fehlermeldungen den Autobahn-Lauftext zeigen
+  if (res.every(r => r.status === "rejected" && r.reason.status === 503 && r.reason.message === "kein Schlüssel")) {
+    startTicker();
+    return;
+  }
+  res.forEach((r, i) => {
+    const n = DESTINATIONS[i].name;
+    if (r.status === "fulfilled") routeData[n] = r.value;
+    else routeData[n] = { error: r.reason && r.reason.message ? r.reason.message : "Fehler" };
+  });
+  routeLoadedAt = new Date();
+  renderRoutes();
+}
+
+function routeColor(delay) {
+  const t = Math.min(1, Math.max(0, (delay - GREEN_UNTIL_MIN) / Math.max(1, RED_AT_DELAY_MIN - GREEN_UNTIL_MIN)));
+  const hue = Math.round(135 * (1 - t));     // 135 = grün, 0 = rot
+  return `hsl(${hue}, 65%, 33%)`;
+}
+
+function renderRoutes() {
+  if (!routesEl) return;
+  routesEl.innerHTML = "";
+  DESTINATIONS.slice(0, 5).forEach(d => {
+    const r = routeData[d.name];
+    const el = document.createElement("div");
+    el.className = "route";
+    const nm = document.createElement("div");
+    nm.className = "route-name";
+    nm.textContent = d.name;
+    const mn = document.createElement("div");
+    mn.className = "route-min";
+    const sm = document.createElement("div");
+    sm.className = "route-sub";
+    if (!r || r.error) {
+      el.classList.add("na");
+      sm.textContent = !isActive() ? "Pause" : (r ? r.error : "Lade …");
+      mn.textContent = "–";
+    } else {
+      el.style.backgroundColor = routeColor(r.delay);
+      sm.textContent = r.delay >= GREEN_UNTIL_MIN ? `+${r.delay} min Verkehr` : "freie Fahrt";
+      mn.innerHTML = `${r.min}<span>min</span>`;
+    }
+    el.append(nm, sm, mn);
+    routesEl.appendChild(el);
+  });
+  const st = document.createElement("div");
+  st.className = "route stand";
+  st.textContent = routeLoadedAt ? `Stand ${pad(routeLoadedAt.getHours())}:${pad(routeLoadedAt.getMinutes())}` : "Stand –";
+  routesEl.appendChild(st);
+}
+
+/* ---- Verkehrskarte (ohne Bibliothek, Kacheln über den Worker) ---- */
+function lon2x(lon, z) { return (lon + 180) / 360 * Math.pow(2, z) * 256; }
+function lat2y(lat, z) {
+  const r = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z) * 256;
+}
+
+// Wählt Zoom und Skalierung so, dass das ganze Gebiet sichtbar ist (Rest der Fläche zeigt die Umgebung)
+function mapLayout(k, w, h, zMin, zMax) {
+  zMin = zMin || 9; zMax = zMax || 13;
+  const bw0 = lon2x(k.ost, 0) - lon2x(k.west, 0);
+  const bh0 = lat2y(k.sued, 0) - lat2y(k.nord, 0);
+  const z = Math.min(zMax, Math.max(zMin, Math.ceil(Math.log2(Math.min(w / bw0, h / bh0)))));
+  const f = Math.pow(2, z);
+  const scale = Math.min(w / (bw0 * f), h / (bh0 * f));
+  const cx = (lon2x(k.west, z) + lon2x(k.ost, z)) / 2;
+  const cy = (lat2y(k.nord, z) + lat2y(k.sued, z)) / 2;
+  return { z, scale, originX: cx - w / 2 / scale, originY: cy - h / 2 / scale };
+}
+
+function project(L, lat, lon) {
+  return { x: (lon2x(lon, L.z) - L.originX) * L.scale, y: (lat2y(lat, L.z) - L.originY) * L.scale };
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// Legt Basiskacheln (und optional Verkehrskacheln) in eine Ansicht
+function buildTileLayer(view, k, zMin, zMax, withTraffic) {
+  const w = view.clientWidth, h = view.clientHeight;
+  const L = mapLayout(k, w, h, zMin, zMax);
+  const inner = el("div", "map-inner");
+  inner.style.transform = `scale(${L.scale})`;
+  const x0 = Math.floor(L.originX / 256), x1 = Math.floor((L.originX + w / L.scale) / 256);
+  const y0 = Math.floor(L.originY / 256), y1 = Math.floor((L.originY + h / L.scale) / 256);
+  let baseTotal = 0, baseFailed = 0;
+  const bases = [], overlays = [];
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) {
+      const pos = img => {
+        img.style.left = (x * 256 - L.originX) + "px";
+        img.style.top = (y * 256 - L.originY) + "px";
+        img.alt = "";
+        return img;
+      };
+      const b = pos(el("img", "base"));
+      baseTotal++;
+      b.onerror = () => {
+        b.classList.add("hidden");
+        if (++baseFailed === baseTotal && withTraffic) showMapMsg(view, "Karte nicht verfügbar");
+      };
+      b.src = `${API}/tile/base/${L.z}/${x}/${y}.png`;
+      bases.push(b);
+      if (withTraffic) {
+        const t = pos(el("img", "traffic"));
+        t.dataset.src = `${API}/tile/traffic/${L.z}/${x}/${y}.png`;
+        t.onerror = () => t.classList.add("hidden");
+        t.onload = () => t.classList.remove("hidden");
+        overlays.push(t);
+      }
+    }
+  }
+  inner.append(...bases, ...overlays);
+  view.appendChild(inner);
+  if (withTraffic) trafficImgs = overlays;
+  return { L, inner };
+}
+
+function addBtz(view, L) {
+  const p = project(L, ORIGIN.lat, ORIGIN.lon);
+  const marker = el("div", "btz-marker");
+  marker.style.left = p.x + "px"; marker.style.top = p.y + "px";
+  const label = el("div", "btz-label", "BTZ");
+  label.style.left = p.x + "px"; label.style.top = p.y + "px";
+  view.append(marker, label);
+  return label;
+}
+
+let trafficImgs = [];
+let mapView = "verkehr", mapSwitchTimer = null;
+const MAP_TITLES = { verkehr: "Verkehr", fusswege: "Fußwege zu den Haltestellen" };
+
+function buildMap() {
+  if (!mapEl) return;
+  mapEl.innerHTML = "";
+  trafficImgs = [];
+  if (!mapEl.clientWidth || !mapEl.clientHeight) return;
+
+  const title = el("div", "map-title", MAP_TITLES.fusswege);   // längster Text, zum Ausmessen
+  mapEl.appendChild(title);
+  const v1 = el("div", "map-view verkehr");
+  mapEl.insertBefore(v1, title);
+  const t1 = buildTileLayer(v1, KARTE, 9, 13, true);
+  addBtz(v1, t1.L);
+  v1.appendChild(el("div", "map-note", "Verkehr: TomTom"));
+
+  if (KARTE.wechsel > 0) {
+    const v2 = el("div", "map-view fusswege");
+    mapEl.insertBefore(v2, title);
+    buildWalkLayer(v2, title.getBoundingClientRect());
+  } else {
+    mapView = "verkehr";
+  }
+  showView(mapView);
+  refreshTrafficLayer(true);
+}
+
+// Gebiet der Fußweg-Karte: alle Wegpunkte, Haltestellen und BTZ, mit Rand
+function walkArea() {
+  const pts = [[ORIGIN.lat, ORIGIN.lon]];
+  STOPS.forEach(s => {
+    if (s.lat) pts.push([s.lat, s.lon]);
+    const f = FUSSWEGE[s.id];
+    if (f) f.weg.forEach(p => pts.push(p));
+  });
+  const lats = pts.map(p => p[0]), lons = pts.map(p => p[1]);
+  const n = Math.max(...lats), so = Math.min(...lats), o = Math.max(...lons), w = Math.min(...lons);
+  const mLat = (n - so) * 0.35, mLon = (o - w) * 0.35;
+  return { nord: n + mLat, sued: so - mLat, west: w - mLon, ost: o + mLon };
+}
+
+function shortName(name) {
+  return name.split("/")[0].replace(/-?Stra(ß|ss)e$/, "-Str.").replace(/-Str\.?$/, "-Str.").slice(0, 18);
+}
+
+function overlapArea(a, b) {
+  return Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+         Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+}
+
+function buildWalkLayer(view, titleRect) {
+  const { L } = buildTileLayer(view, walkArea(), 15, 17, false);
+  const W = view.clientWidth, H = view.clientHeight;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "walk");
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  view.appendChild(svg);
+
+  const badges = [];
+  const pathPts = [];   // Wegpunkte in Pixeln, damit Schilder die Wege nicht verdecken
+  STOPS.forEach(s => {
+    const f = FUSSWEGE[s.id];
+    if (!f || !f.weg.length) return;
+    const pts = f.weg.map(p => project(L, p[0], p[1]));
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6));
+      for (let k = 0; k <= n; k++) pathPts.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    }
+    const str = pts.map(p => p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
+    [["#fff", 8], ["#073070", 5]].forEach(([c, wdt]) => {
+      const pl = document.createElementNS(NS, "polyline");
+      pl.setAttribute("points", str);
+      pl.setAttribute("fill", "none");
+      pl.setAttribute("stroke", c);
+      pl.setAttribute("stroke-width", wdt);
+      pl.setAttribute("stroke-linejoin", "round");
+      pl.setAttribute("stroke-linecap", "round");
+      svg.appendChild(pl);
+    });
+    if (f.ende) badges.push({ cls: "walk-end", text: f.ende, p: pts[pts.length - 1] });
+  });
+
+  // Haltestellenpunkte
+  STOPS.forEach(s => {
+    if (!s.lat) return;
+    const p = project(L, s.lat, s.lon);
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 7);
+    c.setAttribute("fill", "#fff"); c.setAttribute("stroke", "#073070"); c.setAttribute("stroke-width", 3);
+    svg.appendChild(c);
+  });
+
+  const badgeEls = badges.map(b => {
+    const e = el("div", b.cls, b.text);
+    e.style.left = b.p.x + "px"; e.style.top = b.p.y + "px";
+    view.appendChild(e);
+    return e;
+  });
+
+  // Schilder so setzen, dass sie BTZ, Punkte, Wege, Plaketten, Titel, Quellenangabe und einander nicht überdecken
+  const vr = view.getBoundingClientRect();
+  const note = el("div", "map-note", "© OpenStreetMap · Karte: TomTom");
+  view.appendChild(note);
+  const btzLabel = addBtz(view, L);
+  const taken = [btzLabel.getBoundingClientRect(), view.querySelector(".btz-marker").getBoundingClientRect(), note.getBoundingClientRect()]
+    .concat([...svg.querySelectorAll("circle")].map(c => c.getBoundingClientRect()))
+    .concat(badgeEls.map(e => e.getBoundingClientRect()))
+    .concat(titleRect ? [titleRect] : [])
+    .concat(pathPts.map(p => ({ left: vr.left + p.x - 3, top: vr.top + p.y - 3, right: vr.left + p.x + 3, bottom: vr.top + p.y + 3 })));
+  STOPS.forEach(s => {
+    if (!s.lat) return;
+    const p = project(L, s.lat, s.lon);
+    const sign = el("div", "stop-sign");
+    sign.appendChild(el("div", "", shortName(s.name)));
+    (s.linien || []).forEach(l => sign.appendChild(el("span", "line", l)));
+    if (s.gehzeit) sign.appendChild(el("span", "walk-min", s.gehzeit + " min"));
+    view.appendChild(sign);
+    const sw = sign.offsetWidth, sh = sign.offsetHeight, gap = 10;
+    // Plätze rund um den Punkt, zuerst nah, dann mit größerem Abstand
+    const spots = [];
+    [gap, gap * 3, gap * 5].forEach(g => {
+      spots.push(
+        [p.x - sw / 2, p.y - sh - g], [p.x - sw / 2, p.y + g],      // oben, unten
+        [p.x - sw - g, p.y - sh / 2], [p.x + g, p.y - sh / 2],      // links, rechts
+        [p.x + g, p.y - sh - g], [p.x - sw - g, p.y - sh - g],      // oben rechts, oben links
+        [p.x + g, p.y + g], [p.x - sw - g, p.y + g]                 // unten rechts, unten links
+      );
+    });
+    // Platz mit der geringsten Überdeckung; Plätze außerhalb der Karte zählen als stark überdeckt
+    let chosen = spots[0], best = Infinity;
+    for (const [x, y] of spots) {
+      const r = { left: vr.left + x, top: vr.top + y, right: vr.left + x + sw, bottom: vr.top + y + sh };
+      const outside = Math.max(0, -x) + Math.max(0, -y) + Math.max(0, x + sw - W) + Math.max(0, y + sh - H);
+      const cost = taken.reduce((sum, t) => sum + overlapArea(r, t), 0) + outside * 1000;
+      if (cost < best) { best = cost; chosen = [x, y]; }
+      if (cost === 0) break;
+    }
+    sign.style.left = chosen[0] + "px"; sign.style.top = chosen[1] + "px";
+    taken.push(sign.getBoundingClientRect());
+  });
+
+}
+
+function showView(name) {
+  mapView = name;
+  if (!mapEl) return;
+  mapEl.querySelectorAll(".map-view").forEach(v => v.classList.toggle("aktiv", v.classList.contains(name)));
+  const t = mapEl.querySelector(".map-title");
+  if (t) t.textContent = MAP_TITLES[name];
+}
+
+function switchMapView() {
+  if (!mapEl || !mapEl.querySelector(".map-view.fusswege")) return;
+  if (mapView === "verkehr") {
+    showView("fusswege");
+    refreshTrafficLayer(false);   // Verkehrslage vorladen, sie kommt als Nächstes
+  } else {
+    showView("verkehr");
+  }
+}
+
+function showMapMsg(view, text) {
+  if (!view || view.querySelector(".map-msg")) return;
+  view.appendChild(el("div", "map-msg", text));
+}
+
+function refreshTrafficLayer(force) {
+  if (!force && !isActive()) return;
+  const t = Math.floor(Date.now() / 120000);   // gleiche Adresse für 2 Minuten (Speicher im Browser)
+  trafficImgs.forEach(img => { img.src = img.dataset.src + "?t=" + t; });
+}
+
+function startFahrzeit() {
+  trafficEl.innerHTML = "";
+  trafficEl.className = "split";
+  routesEl = document.createElement("div");
+  routesEl.className = "routes";
+  trafficEl.appendChild(routesEl);
+  if (KARTE && KARTE.zeigen) {
+    mapEl = document.createElement("div");
+    mapEl.id = "map";
+    trafficEl.appendChild(mapEl);
+  } else {
+    trafficEl.style.gridTemplateColumns = "1fr";
+  }
+  renderRoutes();
+  buildMap();
+  loadRoutes();
+  routeTimer = setInterval(() => { loadRoutes(); refreshTrafficLayer(false); }, ROUTE_REFRESH_SECONDS * 1000);
+  if (KARTE && KARTE.aktualisieren && KARTE.aktualisieren !== ROUTE_REFRESH_SECONDS) {
+    setInterval(() => refreshTrafficLayer(false), KARTE.aktualisieren * 1000);
+  }
+  if (mapEl && KARTE.wechsel > 0) mapSwitchTimer = setInterval(switchMapView, KARTE.wechsel * 1000);
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (mapEl) buildMap(); }, 300);
+  });
+}
+
+let tickerTimer = null;
+function startTicker() {
+  if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
+  if (mapSwitchTimer) { clearInterval(mapSwitchTimer); mapSwitchTimer = null; }
+  routesEl = null; mapEl = null; trafficImgs = [];
+  trafficEl.className = "";
+  trafficEl.style.gridTemplateColumns = "";
+  trafficEl.innerHTML = "";
+  if (tickerTimer) return;
+  loadTraffic();
+  tickerTimer = setInterval(loadTraffic, TRAFFIC_REFRESH_SECONDS * 1000);
 }
 
 /* ---- Autobahn-Verkehrsmeldungen ---- */
@@ -463,9 +959,7 @@ const AB_API = "https://verkehr.autobahn.de/o/autobahn";
 const trafficEl = document.getElementById("traffic");
 
 async function fetchRoad(road, kind) {
-  const res = await fetch(`${AB_API}/${encodeURIComponent(road)}/services/${kind}`);
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const json = await res.json();
+  const json = await fetchJson(`${AB_API}/${encodeURIComponent(road)}/services/${kind}`);
   return json[kind] || [];
 }
 
@@ -533,8 +1027,7 @@ async function stopSearch(term) {
   try {
     const url = `${API}/location.name?accessId=${encodeURIComponent(ACCESS_ID)}` +
       `&input=${encodeURIComponent(term)}&format=json`;
-    const res = await fetch(url);
-    const json = await res.json();
+    const json = await fetchJson(url);
     const items = (json.stopLocationOrCoordLocation || [])
       .map(x => x.StopLocation).filter(Boolean);
     board.style.display = "block";
@@ -559,12 +1052,12 @@ if (q) {
   stopSearch(q);
 } else {
   tickClock();
-  setInterval(() => { tickClock(); if (lastOk || Object.keys(data).length) render(); }, 15000);
+  setInterval(() => { tickClock(); maybeReload(); if (lastOk || Object.keys(data).length) render(); }, 15000);
   render();
   refresh();
   setInterval(refresh, REFRESH_SECONDS * 1000);
-  loadTraffic();
-  setInterval(loadTraffic, TRAFFIC_REFRESH_SECONDS * 1000);
+  if (FOOTER === "fahrzeit") startFahrzeit();
+  else if (FOOTER === "verkehr") startTicker();
   keepAwake();
 }
 </script>
