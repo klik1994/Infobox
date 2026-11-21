@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verspätungs-Statistik</title>
+<style>
+  :root {
+    /* Farbschema wie der Monitor ("4l"): Anthrazit, Orange, kein Blau */
+    --bg: #1C1F24; --panel: #272B32; --line: #343A43; --text: #F4F5F7; --muted: #AEB4BE;
+    --accent: #FF8D24; --dark: #1C1F24; --late: #FF6B5E; --ok: #3CCB75;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between; padding: 18px 24px 8px; }
+  h1 { margin: 0; font-size: 28px; }
+  #seit { color: var(--muted); font-size: 15px; }
+  .filter { display: flex; gap: 16px; flex-wrap: wrap; padding: 0 24px 12px; }
+  .filter label { color: var(--muted); font-size: 15px; display: flex; gap: 8px; align-items: center; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 15px; padding: 5px 8px; }
+  section { background: var(--panel); border-radius: 12px; margin: 0 24px 20px; overflow: hidden; }
+  h2 { margin: 0; padding: 10px 16px; font-size: 19px; background: var(--accent); color: var(--dark); }
+  .erklaerung { color: var(--muted); font-size: 14px; padding: 8px 16px 0; margin: 0; }
+  .tabelle { overflow-x: auto; padding: 8px 8px 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; -webkit-user-select: none; }
+  th.sortiert { color: var(--accent); }
+  td.zahl, th.zahl { text-align: right; }
+  .linie { display: inline-block; background: #FFFFFF; color: var(--dark); font-weight: 800; border-radius: 5px; padding: 1px 6px; }
+  .balken { display: inline-block; width: 70px; height: 10px; background: var(--line); border-radius: 5px; vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .balken i { display: block; height: 100%; }
+  .zelle { border-radius: 5px; padding: 4px 6px; text-align: center; color: var(--dark); font-weight: 700; }
+  .leer { color: var(--muted); text-align: center; }
+  .hinweis { padding: 18px 16px; color: var(--muted); font-size: 16px; }
+  .hinweis.fehler { color: var(--late); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Verspätungs-Statistik</h1>
+  <div id="seit">Lade …</div>
+</header>
+<div class="filter">
+  <label>Zeitraum
+    <select id="zeitraum">
+      <option value="28">letzte 4 Wochen</option>
+      <option value="91">letzte 3 Monate</option>
+      <option value="365">letzte 12 Monate</option>
+      <option value="0">alles</option>
+    </select>
+  </label>
+  <label>Wochentag
+    <select id="wochentag">
+      <option value="">alle</option>
+      <option value="1">Montag</option>
+      <option value="2">Dienstag</option>
+      <option value="3">Mittwoch</option>
+      <option value="4">Donnerstag</option>
+      <option value="5">Freitag</option>
+    </select>
+  </label>
+</div>
+
+<section>
+  <h2>Busse &amp; Bahnen</h2>
+  <p class="erklaerung">Eine Zeile je Fahrt (Haltestelle, Linie, planmäßige Abfahrt). Gezählt werden nur Fahrten, die mindestens zweimal beobachtet wurden. Gesammelt wird während der Betriebszeit des Monitors.</p>
+  <div class="tabelle" id="fahrten"></div>
+</section>
+
+<section>
+  <h2>Fahrzeiten mit dem Auto: Ø Verzögerung durch Verkehr (Minuten)</h2>
+  <p class="erklaerung">Je Ziel und Viertelstunde, gemessen ab BTZ.</p>
+  <div class="tabelle" id="fahrzeiten"></div>
+</section>
+
+<script>
+/* ====== HIER EINTRAGEN ====== */
+const API_PROXY = "https://rmv-proxy.kevin-kuk.workers.dev";   // derselbe Zwischenserver wie beim Monitor
+const OFT_ZU_SPAET_AB = 3;      // „oft zu spät" = mehr als so viele Minuten (muss zum Worker passen)
+// Kürzungen für Haltestellen- und Richtungsnamen: [lang, kurz]
+const KUERZEN = [["Weiterstadt-Riedbahn ", ""], ["Frankfurt (Main) ", "FFM "], ["Darmstadt ", "DA "], ["Hauptbahnhof", "Hbf"], ["Bahnhof", "Bf"]];
+/* ============================ */
+
+const API = API_PROXY.replace(/\/$/, "");
+const $ = id => document.getElementById(id);
+const kurz = t => KUERZEN.reduce((s, [a, b]) => s.split(a).join(b), String(t || ""));
+const zahl = (v, plus) => v === null || v === undefined ? "–" : (plus && v > 0 ? "+" : "") + String(v).replace(".", ",");
+const datum = d => d ? d.split("-").reverse().join(".") : "";
+function farbe(min, rotAb) {
+  const t = Math.min(1, Math.max(0, (min || 0) / rotAb));
+  return `hsl(${Math.round(135 * (1 - t))}, 75%, 55%)`;
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function hinweis(box, text, fehler) {
+  box.replaceChildren(el("div", "hinweis" + (fehler ? " fehler" : ""), text));
+}
+
+async function holen(art) {
+  const q = new URLSearchParams({ art, tage: $("zeitraum").value, wochentag: $("wochentag").value });
+  const res = await fetch(`${API}/stats?${q}`);
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (res.status === 503) throw new Error("db");
+  if (!res.ok || !body) throw new Error("HTTP " + res.status);
+  return body;
+}
+
+/* ---- Busse & Bahnen ---- */
+let fahrten = [], sortKey = "avg", sortDir = -1;
+const SPALTEN = [
+  { key: "stop", label: "Haltestelle" }, { key: "line", label: "Linie" }, { key: "direction", label: "Richtung" },
+  { key: "time", label: "Abfahrt" }, { key: "n", label: "Fahrten", zahl: true }, { key: "avg", label: "Ø Verspätung", zahl: true },
+  { key: "anteil", label: `oft > ${OFT_ZU_SPAET_AB} min` }, { key: "max", label: "max.", zahl: true }, { key: "cancelled", label: "Ausfälle", zahl: true }
+];
+
+function zeigeFahrten() {
+  const box = $("fahrten");
+  if (!fahrten.length) return hinweis(box, "Noch keine Daten für diesen Zeitraum. Gesammelt wird während der Betriebszeit des Monitors.");
+  const rows = fahrten.map(r => ({ ...r, anteil: r.n ? r.late3 / r.n : 0 }));
+  rows.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    if (typeof x === "number" || typeof y === "number") return ((x || 0) - (y || 0)) * sortDir;
+    return String(x).localeCompare(String(y), "de") * sortDir;
+  });
+  const table = el("table"), thead = el("thead"), hr = el("tr");
+  SPALTEN.forEach(s => {
+    const th = el("th", (s.zahl ? "zahl " : "") + (s.key === sortKey ? "sortiert" : ""), s.label + (s.key === sortKey ? (sortDir < 0 ? " ▼" : " ▲") : ""));
+    th.onclick = () => { if (sortKey === s.key) sortDir = -sortDir; else { sortKey = s.key; sortDir = s.zahl || s.key === "anteil" ? -1 : 1; } zeigeFahrten(); };
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  const tbody = el("tbody");
+  rows.forEach(r => {
+    const tr = el("tr");
+    tr.appendChild(el("td", "", kurz(r.stop)));
+    const tl = el("td"); tl.appendChild(el("span", "linie", r.line)); tr.appendChild(tl);
+    tr.appendChild(el("td", "", kurz(r.direction)));
+    tr.appendChild(el("td", "", r.time));
+    tr.appendChild(el("td", "zahl", String(r.n)));
+    const ta = el("td", "zahl", zahl(r.avg, true) + " min"); ta.style.color = farbe(r.avg, 6); tr.appendChild(ta);
+    const tp = el("td"), bar = el("span", "balken"), fill = el("i");
+    fill.style.width = Math.round(r.anteil * 100) + "%"; fill.style.background = farbe(r.anteil * 10, 6);
+    bar.appendChild(fill); tp.append(bar, document.createTextNode(Math.round(r.anteil * 100) + " %")); tr.appendChild(tp);
+    tr.appendChild(el("td", "zahl", zahl(r.max, true)));
+    tr.appendChild(el("td", "zahl", String(r.cancelled || 0)));
+    tbody.appendChild(tr);
+  });
+  table.append(thead, tbody);
+  box.replaceChildren(table);
+}
+
+/* ---- Fahrzeiten ---- */
+function zeigeFahrzeiten(rows) {
+  const box = $("fahrzeiten");
+  if (!rows.length) return hinweis(box, "Noch keine Daten für diesen Zeitraum.");
+  const slots = [...new Set(rows.map(r => r.slot))].sort();
+  const ziele = [...new Set(rows.map(r => r.dest))];
+  const table = el("table"), thead = el("thead"), hr = el("tr");
+  hr.appendChild(el("th", "", "Ziel"));
+  slots.forEach(s => hr.appendChild(el("th", "zahl", s)));
+  thead.appendChild(hr);
+  const tbody = el("tbody");
+  ziele.forEach(z => {
+    const tr = el("tr");
+    tr.appendChild(el("td", "", z));
+    slots.forEach(s => {
+      const r = rows.find(x => x.dest === z && x.slot === s);
+      const td = el("td");
+      if (!r) td.appendChild(el("div", "leer", "–"));
+      else { const c = el("div", "zelle", zahl(r.avg, true)); c.style.background = farbe(r.avg, 15); c.title = r.n + " Messungen"; td.appendChild(c); }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.append(thead, tbody);
+  box.replaceChildren(table);
+}
+
+async function laden() {
+  $("seit").textContent = "Lade …";
+  const [a, b] = await Promise.allSettled([holen("fahrten"), holen("fahrzeiten")]);
+  const dbFehlt = [a, b].some(r => r.status === "rejected" && r.reason.message === "db");
+  if (dbFehlt) {
+    $("seit").textContent = "";
+    hinweis($("fahrten"), "Die Statistik-Datenbank ist noch nicht eingerichtet. Bitte die Anleitung „Statistik-Datenbank einrichten“ befolgen.", true);
+    hinweis($("fahrzeiten"), "Datenbank noch nicht eingerichtet.", true);
+    return;
+  }
+  if (a.status === "fulfilled") { fahrten = a.value.rows || []; zeigeFahrten(); }
+  else hinweis($("fahrten"), "Daten konnten nicht geladen werden: " + a.reason.message, true);
+  if (b.status === "fulfilled") zeigeFahrzeiten(b.value.rows || []);
+  else hinweis($("fahrzeiten"), "Daten konnten nicht geladen werden: " + b.reason.message, true);
+  const since = (a.value && a.value.since) || (b.value && b.value.since);
+  $("seit").textContent = since ? "Daten seit " + datum(since) : "";
+}
+
+$("zeitraum").onchange = laden;
+$("wochentag").onchange = laden;
+laden();
+</script>
+</body>
+</html>

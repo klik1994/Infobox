@@ -647,7 +647,7 @@ function takeRouteCall() {
 async function loadRoute(dest) {
   if (!takeRouteCall()) throw new Error("Tageslimit erreicht");
   try {
-    return await fetchJson(`${API}/route?origin=${ORIGIN.lat},${ORIGIN.lon}&destination=${dest.lat},${dest.lon}`);
+    return await fetchJson(`${API}/route?origin=${ORIGIN.lat},${ORIGIN.lon}&destination=${dest.lat},${dest.lon}&name=${encodeURIComponent(dest.name)}`);
   } catch (e) {
     const err = new Error(e.body && e.body.error ? e.body.error : e.message);
     err.status = e.status;
