@@ -220,7 +220,7 @@ const ACTIVE_SCHEDULE = {
 };
 // Testbetrieb: bis zu dieser Uhrzeit läuft der Monitor auch außerhalb der Betriebszeit ("" = aus).
 // Format "JJJJ-MM-TTTHH:MM", z. B. "2026-11-20T09:15". Läuft von selbst ab.
-const TESTBETRIEB_BIS = "2026-11-20T10:30";
+const TESTBETRIEB_BIS = "";
 const DAILY_LIMIT = 450;          // Sicherheitsgrenze (zählt nur auf diesem Gerät)
 const DURATION_MIN = 90;     // Zeitfenster in Minuten
 const VERSPAETUNG_ROT_AB = 10;  // Minutenanzeige: pünktlich grün, ab so vielen Minuten Verspätung ganz rot (dazwischen stufenlos)
@@ -265,14 +265,16 @@ const DESTINATIONS = [   // höchstens 6; Schilder in der Karte (ohne Karte: Kac
 const ROUTE_REFRESH_SECONDS = 300;  // alle 5 Minuten (nur in der Betriebszeit)
 const GREEN_UNTIL_MIN = 2;          // bis zu dieser Verzögerung bleibt die Kachel grün
 const RED_AT_DELAY_MIN = 15;        // ab dieser Verzögerung ist die Kachel ganz rot
-const ROUTE_DAILY_LIMIT = 300;      // Sicherheitsgrenze für TomTom-Abrufe pro Tag (auf diesem Gerät)
+const ROUTE_DAILY_LIMIT = 900;      // Sicherheitsgrenze für TomTom-Abrufe pro Tag (auf diesem Gerät)
+const ROUTE_REFRESH_PAUSE_SECONDS = 900;  // außerhalb der Betriebszeit (nur mit KARTE.ganztags): Fahrzeiten alle 15 Minuten
 
 // Verkehrskarte rechts unten (TomTom). Gebiet über die vier Ränder (Breiten-/Längengrad).
 // Voreinstellung: Raum Darmstadt, Weiterstadt bis Dieburg, Arheilgen bis Eberstadt.
 // zeigen: false blendet die Karte aus. aktualisieren: Sekunden bis zum Nachladen der Verkehrslage.
+// ganztags: true = Karte, Verkehr und Fahrzeiten laufen den ganzen Tag (Abfahrten nur in der Betriebszeit).
 // wechsel: Sekunden pro Ansicht im Wechsel Verkehr / Fußwege zu den Haltestellen (0 = nur Verkehr).
 // Die Fußweg-Ansicht muss im Gebiet liegen, für das der Worker Nahansicht-Bilder freigibt (TILE_NAH in worker.js).
-const KARTE = { zeigen: true, nord: 49.93, sued: 49.80, west: 8.57, ost: 8.87, aktualisieren: 300, wechsel: 20 };
+const KARTE = { zeigen: true, nord: 49.93, sued: 49.80, west: 8.57, ost: 8.87, aktualisieren: 300, wechsel: 20, ganztags: true };
 /* ============================ */
 
 // Fußwege vom BTZ-Eingang zu den Haltestellen (OpenStreetMap, geprüft 20.11.2026) – nicht ändern.
@@ -655,8 +657,15 @@ async function loadRoute(dest) {
   }
 }
 
+// Fahrzeiten laufen in der Betriebszeit oder – mit KARTE.ganztags – den ganzen Tag
+function routesActive() { return isActive() || !!(KARTE && KARTE.ganztags); }
+
+let lastRouteLoad = 0;
 async function loadRoutes() {
-  if (!API_PROXY || !isActive()) { renderRoutes(); return; }
+  if (!API_PROXY || !routesActive()) { renderRoutes(); return; }
+  // außerhalb der Betriebszeit seltener abfragen (TomTom-Kontingent)
+  if (!isActive() && lastRouteLoad && Date.now() - lastRouteLoad < ROUTE_REFRESH_PAUSE_SECONDS * 1000 - 5000) return;
+  lastRouteLoad = Date.now();
   const res = await Promise.allSettled(DESTINATIONS.map(loadRoute));
   // Kein TomTom-Schlüssel im Worker: statt Fehlermeldungen den Autobahn-Lauftext zeigen
   if (res.every(r => r.status === "rejected" && r.reason.status === 503 && r.reason.message === "kein Schlüssel")) {
@@ -698,7 +707,7 @@ function renderRoutes() {
     sm.className = "route-sub";
     if (!r || r.error) {
       el.classList.add("na");
-      sm.textContent = !isActive() ? "Pause" : (r ? r.error : "Lade …");
+      sm.textContent = !routesActive() ? "Pause" : (r ? r.error : "Lade …");
       mn.textContent = "–";
     } else {
       el.style.backgroundColor = routeColor(r.delay);
@@ -1034,7 +1043,7 @@ function showMapMsg(view, text) {
 }
 
 function refreshTrafficLayer(force) {
-  if (!force && !isActive()) return;
+  if (!force && !routesActive()) return;
   const t = Math.floor(Date.now() / 120000);   // gleiche Adresse für 2 Minuten (Speicher im Browser)
   trafficImgs.forEach(img => { img.src = img.dataset.src + "?t=" + t; });
 }
