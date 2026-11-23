@@ -103,7 +103,7 @@
   #map .map-view.aktiv { opacity: 1; }
   #map .map-view.fusswege { background: #F2EFE9; }
   #map .map-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-  #map .traffic-grob, #map .traffic-fein { position: absolute; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+  #map .traffic-grob, #map .traffic-fein, #map .traffic-meldungen { position: absolute; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
   #map .map-title { position: absolute; left: 6px; top: 6px; z-index: 2; background: var(--accent); color: var(--dark); font-size: 12px; font-weight: 800; padding: 2px 7px; border-radius: 5px; }
   #map svg.walk { position: absolute; left: 0; top: 0; overflow: visible; }
   #map .stop-sign {
@@ -275,6 +275,9 @@ const ROUTE_REFRESH_PAUSE_SECONDS = 900;  // außerhalb der Betriebszeit (nur mi
 // ganztags: true = Karte, Verkehr und Fahrzeiten laufen den ganzen Tag (Abfahrten nur in der Betriebszeit).
 // wechsel: Sekunden pro Ansicht im Wechsel Verkehr / Fußwege zu den Haltestellen (0 = nur Verkehr).
 // Die Fußweg-Ansicht muss im Gebiet liegen, für das der Worker Nahansicht-Bilder freigibt (TILE_NAH in worker.js).
+// Verkehrsmeldungen auf der Verkehrskarte (TomTom): Symbole für Unfall, Baustelle, Sperrung, Stau.
+// zeigen: false blendet sie aus, deckkraft 0.1–1 macht sie durchsichtiger.
+const VERKEHRSMELDUNGEN = { zeigen: true, deckkraft: 1 };
 // Dünnere Verkehrslinien in der Stadt: Kreis um diesen Punkt (Radius in km) mit Liniendicke "dicke" (1–20).
 // Außerhalb gilt die Dicke aus dem Worker (TRAFFIC_THICKNESS). null = überall gleich dick.
 const STADT_DUENN = { lat: 49.8728, lon: 8.6512, radiusKm: 3, dicke: 6 };   // Darmstadt Innenstadt
@@ -838,7 +841,7 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
   let baseTotal = 0, baseFailed = 0;
   const bases = [], overlays = [];
   // Verkehrsebene in zwei Behältern: grob (überall) und fein (nur Stadtkreis), jeweils mit weicher Maske
-  let grob = null, fein = null, stadt = null;
+  let grob = null, fein = null, stadt = null, meld = null;
   if (withTraffic) {
     const box = cls => {
       const b = el("div", cls);
@@ -847,6 +850,10 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
       return b;
     };
     grob = box("traffic-grob");
+    if (VERKEHRSMELDUNGEN && VERKEHRSMELDUNGEN.zeigen) {
+      meld = box("traffic-meldungen");
+      meld.style.opacity = String(VERKEHRSMELDUNGEN.deckkraft || 1);
+    }
     if (STADT_DUENN) {
       const mpp = 156543.03392 * Math.cos(STADT_DUENN.lat * Math.PI / 180) / Math.pow(2, L.z);   // Meter pro Pixel
       stadt = {
@@ -887,6 +894,15 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
           overlays.push(t);
         };
         mk(grob, "");
+        if (meld) {
+          const m = el("img", "traffic incident");
+          m.style.left = (x - x0) * 256 + "px"; m.style.top = (y - y0) * 256 + "px"; m.alt = "";
+          m.dataset.src = `${API}/tile/incidents/${L.z}/${x}/${y}.png`;
+          m.onerror = () => m.classList.add("hidden");
+          m.onload = () => m.classList.remove("hidden");
+          meld.appendChild(m);
+          overlays.push(m);
+        }
         if (fein) {
           // nur Kacheln, die den Stadtkreis berühren
           const lx = (x - x0) * 256, ly = (y - y0) * 256;
@@ -899,6 +915,7 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
   inner.append(...bases);
   if (grob) inner.appendChild(grob);
   if (fein) inner.appendChild(fein);
+  if (meld) inner.appendChild(meld);   // Meldungen über den Verkehrsfarben
   view.appendChild(inner);
   if (withTraffic) trafficImgs = overlays;
   return { L, inner };
