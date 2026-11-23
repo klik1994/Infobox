@@ -103,6 +103,7 @@
   #map .map-view.aktiv { opacity: 1; }
   #map .map-view.fusswege { background: #F2EFE9; }
   #map .map-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #map .traffic-grob, #map .traffic-fein { position: absolute; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
   #map .map-title { position: absolute; left: 6px; top: 6px; z-index: 2; background: var(--accent); color: var(--dark); font-size: 12px; font-weight: 800; padding: 2px 7px; border-radius: 5px; }
   #map svg.walk { position: absolute; left: 0; top: 0; overflow: visible; }
   #map .stop-sign {
@@ -274,6 +275,9 @@ const ROUTE_REFRESH_PAUSE_SECONDS = 900;  // außerhalb der Betriebszeit (nur mi
 // ganztags: true = Karte, Verkehr und Fahrzeiten laufen den ganzen Tag (Abfahrten nur in der Betriebszeit).
 // wechsel: Sekunden pro Ansicht im Wechsel Verkehr / Fußwege zu den Haltestellen (0 = nur Verkehr).
 // Die Fußweg-Ansicht muss im Gebiet liegen, für das der Worker Nahansicht-Bilder freigibt (TILE_NAH in worker.js).
+// Dünnere Verkehrslinien in der Stadt: Kreis um diesen Punkt (Radius in km) mit Liniendicke "dicke" (1–20).
+// Außerhalb gilt die Dicke aus dem Worker (TRAFFIC_THICKNESS). null = überall gleich dick.
+const STADT_DUENN = { lat: 49.8728, lon: 8.6512, radiusKm: 3, dicke: 6 };   // Darmstadt Innenstadt
 const KARTE = { zeigen: true, nord: 49.93, sued: 49.80, west: 8.57, ost: 8.87, aktualisieren: 300, wechsel: 20, ganztags: true };
 /* ============================ */
 
@@ -827,6 +831,29 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
   const y0 = Math.floor(L.originY / 256), y1 = Math.floor((L.originY + h / L.scale) / 256);
   let baseTotal = 0, baseFailed = 0;
   const bases = [], overlays = [];
+  // Verkehrsebene in zwei Behältern: grob (überall) und fein (nur Stadtkreis), jeweils mit weicher Maske
+  let grob = null, fein = null, stadt = null;
+  if (withTraffic) {
+    const box = cls => {
+      const b = el("div", cls);
+      b.style.left = (x0 * 256 - L.originX) + "px"; b.style.top = (y0 * 256 - L.originY) + "px";
+      b.style.width = (x1 - x0 + 1) * 256 + "px"; b.style.height = (y1 - y0 + 1) * 256 + "px";
+      return b;
+    };
+    grob = box("traffic-grob");
+    if (STADT_DUENN) {
+      const mpp = 156543.03392 * Math.cos(STADT_DUENN.lat * Math.PI / 180) / Math.pow(2, L.z);   // Meter pro Pixel
+      stadt = {
+        x: lon2x(STADT_DUENN.lon, L.z) - x0 * 256, y: lat2y(STADT_DUENN.lat, L.z) - y0 * 256,
+        r: STADT_DUENN.radiusKm * 1000 / mpp
+      };
+      const innen = (stadt.r * 0.85).toFixed(1), aussen = stadt.r.toFixed(1), at = `circle at ${stadt.x.toFixed(1)}px ${stadt.y.toFixed(1)}px`;
+      const maske = (e, g) => { e.style.webkitMaskImage = g; e.style.maskImage = g; };
+      fein = box("traffic-fein");
+      maske(grob, `radial-gradient(${at}, transparent ${innen}px, #000 ${aussen}px)`);
+      maske(fein, `radial-gradient(${at}, #000 ${innen}px, transparent ${aussen}px)`);
+    }
+  }
   for (let x = x0; x <= x1; x++) {
     for (let y = y0; y <= y1; y++) {
       const pos = img => {
@@ -844,15 +871,28 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
       b.src = `${API}/tile/base/${L.z}/${x}/${y}.png`;
       bases.push(b);
       if (withTraffic) {
-        const t = pos(el("img", "traffic"));
-        t.dataset.src = `${API}/tile/traffic/${L.z}/${x}/${y}.png`;
-        t.onerror = () => t.classList.add("hidden");
-        t.onload = () => t.classList.remove("hidden");
-        overlays.push(t);
+        const mk = (parent, extra) => {
+          const t = el("img", "traffic");
+          t.style.left = (x - x0) * 256 + "px"; t.style.top = (y - y0) * 256 + "px"; t.alt = "";
+          t.dataset.src = `${API}/tile/traffic/${L.z}/${x}/${y}.png${extra}`;
+          t.onerror = () => t.classList.add("hidden");
+          t.onload = () => t.classList.remove("hidden");
+          parent.appendChild(t);
+          overlays.push(t);
+        };
+        mk(grob, "");
+        if (fein) {
+          // nur Kacheln, die den Stadtkreis berühren
+          const lx = (x - x0) * 256, ly = (y - y0) * 256;
+          const nx = Math.max(lx, Math.min(stadt.x, lx + 256)), ny = Math.max(ly, Math.min(stadt.y, ly + 256));
+          if (Math.hypot(nx - stadt.x, ny - stadt.y) <= stadt.r) mk(fein, "?d=" + STADT_DUENN.dicke);
+        }
       }
     }
   }
-  inner.append(...bases, ...overlays);
+  inner.append(...bases);
+  if (grob) inner.appendChild(grob);
+  if (fein) inner.appendChild(fein);
   view.appendChild(inner);
   if (withTraffic) trafficImgs = overlays;
   return { L, inner };
@@ -1045,7 +1085,7 @@ function showMapMsg(view, text) {
 function refreshTrafficLayer(force) {
   if (!force && !routesActive()) return;
   const t = Math.floor(Date.now() / 120000);   // gleiche Adresse für 2 Minuten (Speicher im Browser)
-  trafficImgs.forEach(img => { img.src = img.dataset.src + "?t=" + t; });
+  trafficImgs.forEach(img => { img.src = img.dataset.src + (img.dataset.src.indexOf("?") >= 0 ? "&" : "?") + "t=" + t; });
 }
 
 function startFahrzeit() {
