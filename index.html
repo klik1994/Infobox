@@ -278,6 +278,8 @@ const ROUTE_REFRESH_PAUSE_SECONDS = 900;  // außerhalb der Betriebszeit (nur mi
 // Verkehrsmeldungen auf der Verkehrskarte (TomTom): Symbole für Unfall, Baustelle, Sperrung, Stau.
 // zeigen: false blendet sie aus, deckkraft 0.1–1 macht sie durchsichtiger.
 const VERKEHRSMELDUNGEN = { zeigen: true, deckkraft: 1 };
+// Dritte Kartenansicht "Verkehr Darmstadt": naher Ausschnitt (vier Ränder), Liniendicke 1–20. zeigen: false = aus.
+const KARTE_STADT = { zeigen: true, nord: 49.893, sued: 49.855, west: 8.605, ost: 8.690, dicke: 10 };
 // Dünnere Verkehrslinien in der Stadt: Kreis um diesen Punkt (Radius in km) mit Liniendicke "dicke" (1–20).
 // Außerhalb gilt die Dicke aus dem Worker (TRAFFIC_THICKNESS). null = überall gleich dick.
 const STADT_DUENN = { lat: 49.8728, lon: 8.6512, radiusKm: 3, dicke: 6 };   // Darmstadt Innenstadt
@@ -831,7 +833,9 @@ function el(tag, cls, text) {
 }
 
 // Legt Basiskacheln (und optional Verkehrskacheln) in eine Ansicht
-function buildTileLayer(view, k, zMin, zMax, withTraffic) {
+// opts.dicke: feste Liniendicke für alle Verkehrskacheln; opts.stadtMaske: dünne Linien im Kreis STADT_DUENN
+function buildTileLayer(view, k, zMin, zMax, withTraffic, opts) {
+  opts = opts || {};
   const w = view.clientWidth, h = view.clientHeight;
   const L = mapLayout(k, w, h, zMin, zMax);
   const inner = el("div", "map-inner");
@@ -854,7 +858,7 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
       meld = box("traffic-meldungen");
       meld.style.opacity = String(VERKEHRSMELDUNGEN.deckkraft || 1);
     }
-    if (STADT_DUENN) {
+    if (STADT_DUENN && opts.stadtMaske) {
       const mpp = 156543.03392 * Math.cos(STADT_DUENN.lat * Math.PI / 180) / Math.pow(2, L.z);   // Meter pro Pixel
       stadt = {
         x: lon2x(STADT_DUENN.lon, L.z) - x0 * 256, y: lat2y(STADT_DUENN.lat, L.z) - y0 * 256,
@@ -893,7 +897,7 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
           parent.appendChild(t);
           overlays.push(t);
         };
-        mk(grob, "");
+        mk(grob, opts.dicke ? "?d=" + opts.dicke : "");
         if (meld) {
           const m = el("img", "traffic incident");
           m.style.left = (x - x0) * 256 + "px"; m.style.top = (y - y0) * 256 + "px"; m.alt = "";
@@ -917,7 +921,7 @@ function buildTileLayer(view, k, zMin, zMax, withTraffic) {
   if (fein) inner.appendChild(fein);
   if (meld) inner.appendChild(meld);   // Meldungen über den Verkehrsfarben
   view.appendChild(inner);
-  if (withTraffic) trafficImgs = overlays;
+  if (withTraffic) trafficImgs = trafficImgs.concat(overlays);
   return { L, inner };
 }
 
@@ -933,7 +937,7 @@ function addBtz(view, L) {
 
 let trafficImgs = [];
 let mapView = "verkehr", mapSwitchTimer = null;
-const MAP_TITLES = { verkehr: "Verkehr", fusswege: "Fußwege zu den Haltestellen" };
+const MAP_TITLES = { verkehr: "Verkehr", fusswege: "Fußwege zu den Haltestellen", stadt: "Verkehr Darmstadt" };
 
 function buildMap() {
   if (!mapEl) return;
@@ -945,7 +949,7 @@ function buildMap() {
   mapEl.appendChild(title);
   const v1 = el("div", "map-view verkehr");
   mapEl.insertBefore(v1, title);
-  const t1 = buildTileLayer(v1, KARTE, 9, 13, true);
+  const t1 = buildTileLayer(v1, KARTE, 9, 13, true, { stadtMaske: true });
   trafficLayout = t1.L;
   addBtz(v1, t1.L);
   v1.appendChild(el("div", "map-note", "Verkehr: TomTom"));
@@ -955,9 +959,14 @@ function buildMap() {
     const v2 = el("div", "map-view fusswege");
     mapEl.insertBefore(v2, title);
     buildWalkLayer(v2, title.getBoundingClientRect());
-  } else {
-    mapView = "verkehr";
+    if (KARTE_STADT && KARTE_STADT.zeigen) {
+      const v3 = el("div", "map-view stadt");
+      mapEl.insertBefore(v3, title);
+      buildTileLayer(v3, KARTE_STADT, 13, 13, true, { dicke: KARTE_STADT.dicke });
+      v3.appendChild(el("div", "map-note", "Verkehr: TomTom"));
+    }
   }
+  if (!mapEl.querySelector(".map-view." + mapView)) mapView = "verkehr";
   showView(mapView);
   refreshTrafficLayer(true);
   renderRoutes();
@@ -1090,14 +1099,13 @@ function showView(name) {
   if (t) t.textContent = MAP_TITLES[name];
 }
 
+// Wechselt der Reihe nach durch alle vorhandenen Ansichten: Verkehr → Fußwege → Verkehr Darmstadt
 function switchMapView() {
-  if (!mapEl || !mapEl.querySelector(".map-view.fusswege")) return;
-  if (mapView === "verkehr") {
-    showView("fusswege");
-    refreshTrafficLayer(false);   // Verkehrslage vorladen, sie kommt als Nächstes
-  } else {
-    showView("verkehr");
-  }
+  if (!mapEl) return;
+  const order = ["verkehr", "fusswege", "stadt"].filter(n => mapEl.querySelector(".map-view." + n));
+  if (order.length < 2) return;
+  showView(order[(order.indexOf(mapView) + 1) % order.length]);
+  refreshTrafficLayer(false);   // Verkehrslage aktuell halten (gleiche Adresse für 2 min, also kaum Mehrverkehr)
 }
 
 function showMapMsg(view, text) {
