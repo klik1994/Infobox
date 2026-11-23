@@ -670,7 +670,13 @@ async function loadRoutes() {
   // außerhalb der Betriebszeit seltener abfragen (TomTom-Kontingent)
   if (!isActive() && lastRouteLoad && Date.now() - lastRouteLoad < ROUTE_REFRESH_PAUSE_SECONDS * 1000 - 5000) return;
   lastRouteLoad = Date.now();
-  const res = await Promise.allSettled(DESTINATIONS.map(loadRoute));
+  // nacheinander abfragen: TomTom (kostenlos) erlaubt nur wenige Abfragen pro Sekunde, sonst kommt HTTP 429
+  const res = [];
+  for (const d of DESTINATIONS) {
+    try { res.push({ status: "fulfilled", value: await loadRoute(d) }); }
+    catch (e) { res.push({ status: "rejected", reason: e }); }
+    await new Promise(r => setTimeout(r, 250));
+  }
   // Kein TomTom-Schlüssel im Worker: statt Fehlermeldungen den Autobahn-Lauftext zeigen
   if (res.every(r => r.status === "rejected" && r.reason.status === 503 && r.reason.message === "kein Schlüssel")) {
     startTicker();
