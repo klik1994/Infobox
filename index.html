@@ -264,6 +264,9 @@ const DESTINATIONS = [   // höchstens 6; Schilder in der Karte (ohne Karte: Kac
   { name: "Dieburg",    lat: 49.8985, lon: 8.8406 }
 ];
 const ROUTE_REFRESH_SECONDS = 300;  // alle 5 Minuten (nur in der Betriebszeit)
+// Richtung der Fahrzeiten: bis zu dieser Stunde von den Orten ZUM BTZ (morgens), danach VOM BTZ zu den Orten.
+// 0 = immer vom BTZ. Muss zu ZUM_BTZ_BIS im Worker passen (für die Statistik).
+const RICHTUNG_ZUM_BTZ_BIS = 12;
 const GREEN_UNTIL_MIN = 2;          // bis zu dieser Verzögerung bleibt die Kachel grün
 const RED_AT_DELAY_MIN = 15;        // ab dieser Verzögerung ist die Kachel ganz rot
 const ROUTE_DAILY_LIMIT = 900;      // Sicherheitsgrenze für TomTom-Abrufe pro Tag (auf diesem Gerät)
@@ -655,10 +658,15 @@ function takeRouteCall() {
   return true;
 }
 
+function zumBtz() { return new Date().getHours() < RICHTUNG_ZUM_BTZ_BIS; }
+let routeDirZum = false;   // Richtung der zuletzt geladenen Fahrzeiten (für Pfeile und Hinweis)
+
 async function loadRoute(dest) {
   if (!takeRouteCall()) throw new Error("Tageslimit erreicht");
   try {
-    return await fetchJson(`${API}/route?origin=${ORIGIN.lat},${ORIGIN.lon}&destination=${dest.lat},${dest.lon}&name=${encodeURIComponent(dest.name)}`);
+    const btz = `${ORIGIN.lat},${ORIGIN.lon}`, ort = `${dest.lat},${dest.lon}`, zum = zumBtz();
+    const name = zum ? dest.name + " → BTZ" : dest.name;
+    return await fetchJson(`${API}/route?origin=${zum ? ort : btz}&destination=${zum ? btz : ort}&name=${encodeURIComponent(name)}`);
   } catch (e) {
     const err = new Error(e.body && e.body.error ? e.body.error : e.message);
     err.status = e.status;
@@ -673,8 +681,11 @@ let lastRouteLoad = 0;
 async function loadRoutes() {
   if (!API_PROXY || !routesActive()) { renderRoutes(); return; }
   // außerhalb der Betriebszeit seltener abfragen (TomTom-Kontingent)
-  if (!isActive() && lastRouteLoad && Date.now() - lastRouteLoad < ROUTE_REFRESH_PAUSE_SECONDS * 1000 - 5000) return;
+  // beim Richtungswechsel (12 Uhr) sofort neu laden, sonst außerhalb der Betriebszeit nur alle 15 Minuten
+  const richtungGewechselt = lastRouteLoad && zumBtz() !== routeDirZum;
+  if (!richtungGewechselt && !isActive() && lastRouteLoad && Date.now() - lastRouteLoad < ROUTE_REFRESH_PAUSE_SECONDS * 1000 - 5000) return;
   lastRouteLoad = Date.now();
+  routeDirZum = zumBtz();
   // nacheinander abfragen: TomTom (kostenlos) erlaubt nur wenige Abfragen pro Sekunde, sonst kommt HTTP 429
   const res = [];
   for (const d of DESTINATIONS) {
@@ -735,7 +746,8 @@ function renderRoutes() {
   });
   const st = document.createElement("div");
   st.className = "route stand";
-  st.textContent = routeLoadedAt ? `Stand ${pad(routeLoadedAt.getHours())}:${pad(routeLoadedAt.getMinutes())}` : "Stand –";
+  st.textContent = (routeLoadedAt ? `Stand ${pad(routeLoadedAt.getHours())}:${pad(routeLoadedAt.getMinutes())}` : "Stand –") +
+    (routeDirZum ? " · zum BTZ" : " · ab BTZ");
   box.appendChild(st);
   if (layer && trafficLayout) placeCityLabels(layer, trafficLayout, tiles, st);
 }
@@ -763,7 +775,8 @@ function placeCityLabels(layer, L, tiles, standEl) {
     const p = project(L, d.lat, d.lon);
     const inside = p.x > m && p.x < W - m && p.y > m && p.y < H - m;
     const dirEl = el.querySelector(".route-dir");
-    if (dirEl) dirEl.textContent = inside ? "" : arrowFor(p.x - btz.x, p.y - btz.y);
+    // Pfeil in Fahrtrichtung: morgens von der Stadt zum BTZ, nachmittags vom BTZ zur Stadt
+    if (dirEl) dirEl.textContent = inside ? "" : (routeDirZum ? arrowFor(btz.x - p.x, btz.y - p.y) : arrowFor(p.x - btz.x, p.y - btz.y));
     const sw = el.offsetWidth, sh = el.offsetHeight;
     const minX = m, maxX = W - m - sw, minY = m, maxY = H - m - sh;
     let x, y, axis;
@@ -1259,7 +1272,11 @@ if (q) {
   stopSearch(q);
 } else {
   tickClock();
-  setInterval(() => { tickClock(); maybeReload(); if (lastOk || Object.keys(data).length) render(); }, 15000);
+  setInterval(() => {
+    tickClock(); maybeReload();
+    if (FOOTER === "fahrzeit" && routeTimer && lastRouteLoad && zumBtz() !== routeDirZum) loadRoutes();   // Richtungswechsel um 12 Uhr sofort
+    if (lastOk || Object.keys(data).length) render();
+  }, 15000);
   render();
   refresh();
   setInterval(refresh, REFRESH_SECONDS * 1000);
