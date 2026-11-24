@@ -282,7 +282,7 @@ const ROUTE_REFRESH_PAUSE_SECONDS = 900;  // außerhalb der Betriebszeit (nur mi
 // zeigen: false blendet sie aus, deckkraft 0.1–1 macht sie durchsichtiger.
 const VERKEHRSMELDUNGEN = { zeigen: true, deckkraft: 1 };
 // Dritte Kartenansicht "Verkehr Darmstadt": naher Ausschnitt (vier Ränder), Liniendicke 1–20. zeigen: false = aus.
-const KARTE_STADT = { zeigen: true, nord: 49.893, sued: 49.855, west: 8.605, ost: 8.690, dicke: 10 };
+const KARTE_STADT = { zeigen: true, nord: 49.893, sued: 49.855, west: 8.605, ost: 8.690, dicke: 5 };
 // Dünnere Verkehrslinien in der Stadt: Kreis um diesen Punkt (Radius in km) mit Liniendicke "dicke" (1–20).
 // Außerhalb gilt die Dicke aus dem Worker (TRAFFIC_THICKNESS). null = überall gleich dick.
 const STADT_DUENN = { lat: 49.8728, lon: 8.6512, radiusKm: 3, dicke: 6 };   // Darmstadt Innenstadt
